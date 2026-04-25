@@ -1,0 +1,11 @@
+# Banco de dados (MariaDB rodando no servidor host)
+URL_BD=jdbc:mariadb://localhost:3306/seu_banco
+USER_BD=seu_user
+SENHA_BD=sua_senha
+
+# JWT
+JWT_SECRET=secret_jwt_32bytes_Base64
+JWT_EXPIRATION_MS=86400000
+
+# CORS — origem do frontend (sem barra e sem path)
+CORS_ALLOWED_ORIGIN=http://localhost:8080

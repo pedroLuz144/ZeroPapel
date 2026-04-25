@@ -1,0 +1,730 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — Golden Petiscaria</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      background: white;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────── */
+    .sidebar {
+      width: 185px;
+      background: #1a1a2e;
+      color: white;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar-logo {
+      padding: 18px 16px 14px;
+      border-bottom: 1px solid #2a2a4e;
+    }
+
+    .sidebar-logo .nome {
+      font-size: 12px;
+      font-weight: bold;
+      letter-spacing: 1px;
+    }
+
+    .sidebar-logo .sub {
+      font-size: 11px;
+      color: #8888aa;
+      margin-top: 3px;
+    }
+
+    .sidebar-secao {
+      font-size: 10px;
+      color: #6666888;
+      letter-spacing: 1px;
+      padding: 16px 16px 6px;
+      color: #7777aa;
+    }
+
+    .sidebar-item {
+      padding: 11px 16px;
+      font-size: 13px;
+      color: #aaaacc;
+      cursor: default;
+    }
+
+    .sidebar-item.ativo {
+      background: #2a2a4e;
+      color: white;
+      font-weight: bold;
+    }
+
+    /* ── Main ──────────────────────────────────────────────── */
+    .main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Top bar */
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 13px 24px;
+      border-bottom: 1px solid #e0e0e0;
+      background: white;
+    }
+
+    .topbar-titulo { font-size: 15px; font-weight: bold; color: #222; }
+
+    .topbar-usuario {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      color: #444;
+    }
+
+    .badge-cargo {
+      border: 1px solid #999;
+      padding: 3px 10px;
+      font-size: 12px;
+      color: #555;
+    }
+
+    .btn-sair {
+      background: none;
+      border: 1px solid #ccc;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: #666;
+      cursor: pointer;
+    }
+
+    .btn-sair:hover { background: #f5f5f5; }
+
+    /* Content area */
+    .content {
+      flex: 1;
+      padding: 22px 28px;
+      overflow-y: auto;
+    }
+
+    /* ── Tabs ──────────────────────────────────────────────── */
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid #ddd;
+      margin-bottom: 22px;
+    }
+
+    .tab {
+      padding: 9px 22px;
+      font-size: 14px;
+      color: #666;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -1px;
+    }
+
+    .tab:hover { color: #1a1a2e; }
+
+    .tab.ativo {
+      color: #1a1a2e;
+      font-weight: bold;
+      border-bottom-color: #1a1a2e;
+    }
+
+    /* ── Cardápio ──────────────────────────────────────────── */
+    .barra-topo-tabela {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .contagem { font-size: 13px; color: #666; }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+
+    th {
+      text-align: left;
+      padding: 10px 14px;
+      background: #f5f5f5;
+      border-bottom: 2px solid #ddd;
+      font-size: 13px;
+      font-weight: bold;
+      color: #333;
+    }
+
+    td {
+      padding: 10px 14px;
+      border-bottom: 1px solid #ececec;
+      color: #333;
+    }
+
+    tr:hover td { background: #fafafa; }
+
+    .badge-status {
+      display: inline-block;
+      padding: 2px 10px;
+      border: 1px solid;
+      font-size: 12px;
+    }
+
+    .badge-status.ativo { border-color: #555; color: #333; }
+    .badge-status.inativo { border-color: #bbb; color: #aaa; background: #f7f7f7; }
+
+    .link-acao {
+      font-size: 13px;
+      color: #1a1a2e;
+      cursor: pointer;
+      text-decoration: underline;
+      margin-right: 12px;
+    }
+
+    .link-acao.excluir { color: #c00; }
+
+    /* ── Botões ────────────────────────────────────────────── */
+    .btn-primario {
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      padding: 8px 18px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-primario:hover:not(:disabled) { background: #2a2a4e; }
+    .btn-primario:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .btn-secundario {
+      background: white;
+      color: #333;
+      border: 1px solid #ccc;
+      padding: 8px 18px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    .btn-secundario:hover { background: #f5f5f5; }
+
+    /* ── Modal ─────────────────────────────────────────────── */
+    .modal-fundo {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+
+    .modal {
+      background: white;
+      padding: 28px 32px;
+      width: 430px;
+      max-height: 90vh;
+      overflow-y: auto;
+    }
+
+    .modal h3 { font-size: 15px; margin-bottom: 20px; color: #222; }
+
+    .campo { margin-bottom: 14px; }
+
+    .campo label {
+      display: block;
+      font-size: 13px;
+      color: #555;
+      margin-bottom: 5px;
+    }
+
+    .campo input,
+    .campo select,
+    .campo textarea {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      outline: none;
+      font-family: Arial, sans-serif;
+    }
+
+    .campo input:focus,
+    .campo select:focus,
+    .campo textarea:focus { border-color: #1a1a2e; }
+
+    .modal-acoes {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+      margin-top: 22px;
+    }
+
+    /* ── Mensagens ─────────────────────────────────────────── */
+    .msg-erro {
+      background: #fff0f0;
+      border: 1px solid #f5c2c2;
+      color: #c00;
+      font-size: 13px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+
+    .msg-sucesso {
+      background: #f0fff4;
+      border: 1px solid #b2dfcc;
+      color: #2a7a4a;
+      font-size: 13px;
+      padding: 10px 14px;
+      margin-bottom: 14px;
+    }
+
+    .sem-permissao {
+      padding: 32px;
+      text-align: center;
+      color: #999;
+      font-size: 14px;
+      background: #f9f9f9;
+      border: 1px solid #eee;
+    }
+
+    .placeholder {
+      padding: 48px;
+      text-align: center;
+      color: #bbb;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" style="display:flex;width:100%;height:100vh;">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
+      <div class="sidebar-logo">
+        <div class="nome">GOLDEN PETISCARIA</div>
+        <div class="sub">Sistema de Pedidos</div>
+      </div>
+      <div class="sidebar-secao">MENU</div>
+      <div class="sidebar-item">PDV — Balcão</div>
+      <div class="sidebar-item">Painel de Pedidos</div>
+      <div class="sidebar-item">Dashboard Financeiro</div>
+      <div class="sidebar-item ativo">Configurações</div>
+    </div>
+
+    <!-- ── Main ── -->
+    <div class="main">
+
+      <!-- Top bar -->
+      <div class="topbar">
+        <div class="topbar-titulo">Configurações</div>
+        <div class="topbar-usuario">
+          <span>{{ usuario }}</span>
+          <span class="badge-cargo">{{ cargo === 'GERENTE' ? 'Gerente' : 'Operador' }}</span>
+          <button class="btn-sair" @click="sair">Sair</button>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <div class="content">
+
+        <!-- Tabs -->
+        <div class="tabs">
+          <div class="tab" :class="{ ativo: aba === 'cardapio' }" @click="aba = 'cardapio'">Cardápio</div>
+          <div class="tab" :class="{ ativo: aba === 'usuarios' }" @click="aba = 'usuarios'">Usuários</div>
+          <div class="tab" :class="{ ativo: aba === 'integracoes' }" @click="aba = 'integracoes'">Integrações</div>
+        </div>
+
+        <!-- ── Aba: Cardápio ── -->
+        <div v-if="aba === 'cardapio'">
+          <div class="barra-topo-tabela">
+            <span class="contagem">
+              {{ itens.length }} {{ itens.length === 1 ? 'item cadastrado' : 'itens cadastrados' }}
+            </span>
+            <button v-if="isGerente" class="btn-primario" @click="abrirModalNovo">+ Novo item</button>
+          </div>
+
+          <div v-if="erroCardapio" class="msg-erro">{{ erroCardapio }}</div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Categoria</th>
+                <th>Preço</th>
+                <th>Status</th>
+                <th v-if="isGerente">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-if="itens.length === 0 && !erroCardapio">
+                <td colspan="5" style="text-align:center;color:#aaa;padding:24px;">
+                  Nenhum item cadastrado.
+                </td>
+              </tr>
+              <tr v-for="item in itens" :key="item.id">
+                <td>{{ item.nome }}</td>
+                <td>{{ nomeCategoria(item.categoria) }}</td>
+                <td>{{ formatarPreco(item.preco) }}</td>
+                <td>
+                  <span class="badge-status" :class="item.status === 'ATIVO' ? 'ativo' : 'inativo'">
+                    {{ item.status === 'ATIVO' ? 'Ativo' : 'Inativo' }}
+                  </span>
+                </td>
+                <td v-if="isGerente">
+                  <span class="link-acao" @click="abrirModalEditar(item)">Editar</span>
+                  <span class="link-acao excluir" @click="excluirItem(item)">Excluir</span>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- ── Aba: Usuários ── -->
+        <div v-if="aba === 'usuarios'">
+          <div v-if="!isGerente" class="sem-permissao">
+            Apenas gerentes podem cadastrar novos usuários.
+          </div>
+          <div v-else style="max-width:400px;">
+            <h3 style="font-size:15px;margin-bottom:18px;color:#222;">Cadastrar Novo Usuário</h3>
+
+            <div v-if="erroUsuario" class="msg-erro">{{ erroUsuario }}</div>
+            <div v-if="sucessoUsuario" class="msg-sucesso">{{ sucessoUsuario }}</div>
+
+            <div class="campo">
+              <label>Nome completo</label>
+              <input v-model="novoUsuario.nome" type="text" placeholder="Ex: Carlos Mendes">
+            </div>
+            <div class="campo">
+              <label>Usuário (login)</label>
+              <input v-model="novoUsuario.usuario" type="text" placeholder="Ex: carlos">
+            </div>
+            <div class="campo">
+              <label>Senha</label>
+              <input v-model="novoUsuario.senha" type="password" placeholder="Mínimo 4 caracteres">
+            </div>
+            <div class="campo">
+              <label>Cargo</label>
+              <select v-model="novoUsuario.cargo">
+                <option value="">Selecione...</option>
+                <option value="GERENTE">Gerente</option>
+                <option value="OPERADOR">Operador</option>
+              </select>
+            </div>
+            <button class="btn-primario" @click="cadastrarUsuario" :disabled="salvandoUsuario">
+              {{ salvandoUsuario ? 'Salvando...' : 'Cadastrar Usuário' }}
+            </button>
+          </div>
+        </div>
+
+        <!-- ── Aba: Integrações ── -->
+        <div v-if="aba === 'integracoes'">
+          <div class="placeholder">Em breve — integrações não disponíveis nesta versão.</div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ── Modal: Novo Item ── -->
+    <div v-if="modalNovo" class="modal-fundo" @click.self="modalNovo = false">
+      <div class="modal">
+        <h3>Novo Item</h3>
+        <div v-if="erroModal" class="msg-erro">{{ erroModal }}</div>
+        <div class="campo">
+          <label>Nome *</label>
+          <input v-model="form.nome" type="text" placeholder="Ex: Frango Empanado">
+        </div>
+        <div class="campo">
+          <label>Categoria *</label>
+          <select v-model="form.categoria">
+            <option value="">Selecione...</option>
+            <option value="BEBIDAS">Bebidas</option>
+            <option value="PORCOES">Porções</option>
+            <option value="LANCHES">Lanches</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Preço (R$) *</label>
+          <input v-model="form.preco" type="number" step="0.01" min="0.01" placeholder="Ex: 18.00">
+        </div>
+        <div class="campo">
+          <label>Descrição</label>
+          <textarea v-model="form.descricao" rows="3" placeholder="Opcional"></textarea>
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-secundario" @click="modalNovo = false">Cancelar</button>
+          <button class="btn-primario" @click="salvarNovoItem" :disabled="salvando">
+            {{ salvando ? 'Salvando...' : 'Salvar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Modal: Editar Item ── -->
+    <div v-if="modalEditar" class="modal-fundo" @click.self="modalEditar = false">
+      <div class="modal">
+        <h3>Editar Item</h3>
+        <div v-if="erroModal" class="msg-erro">{{ erroModal }}</div>
+        <div class="campo">
+          <label>Nome</label>
+          <input v-model="form.nome" type="text">
+        </div>
+        <div class="campo">
+          <label>Categoria</label>
+          <select v-model="form.categoria">
+            <option value="BEBIDAS">Bebidas</option>
+            <option value="PORCOES">Porções</option>
+            <option value="LANCHES">Lanches</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Preço (R$)</label>
+          <input v-model="form.preco" type="number" step="0.01" min="0.01">
+        </div>
+        <div class="campo">
+          <label>Status</label>
+          <select v-model="form.status">
+            <option value="ATIVO">Ativo</option>
+            <option value="INATIVO">Inativo</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Descrição</label>
+          <textarea v-model="form.descricao" rows="3"></textarea>
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-secundario" @click="modalEditar = false">Cancelar</button>
+          <button class="btn-primario" @click="salvarEdicao" :disabled="salvando">
+            {{ salvando ? 'Salvando...' : 'Salvar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp } = Vue
+
+    createApp({
+      data() {
+        return {
+          token:    localStorage.getItem('token')    || '',
+          usuario:  localStorage.getItem('usuario')  || '',
+          cargo:    localStorage.getItem('cargo')    || '',
+          aba:      'cardapio',
+
+          // Cardápio
+          itens:        [],
+          erroCardapio: '',
+
+          // Modais de item
+          modalNovo:   false,
+          modalEditar: false,
+          itemEditando: null,
+          form:        { nome: '', categoria: '', preco: '', descricao: '', status: 'ATIVO' },
+          erroModal:   '',
+          salvando:    false,
+
+          // Usuários
+          novoUsuario:   { nome: '', usuario: '', senha: '', cargo: '' },
+          erroUsuario:   '',
+          sucessoUsuario: '',
+          salvandoUsuario: false,
+        }
+      },
+
+      computed: {
+        isGerente() { return this.cargo === 'GERENTE' }
+      },
+
+      async mounted() {
+        if (!this.token) { window.location.href = '/login.html'; return }
+        await this.carregarItens()
+      },
+
+      methods: {
+
+        // ── Auth ──────────────────────────────────────────────
+        sair() {
+          const refreshToken = localStorage.getItem('refreshToken')
+          if (refreshToken) {
+            fetch('/auth/logout', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + this.token },
+              body: JSON.stringify({ refreshToken })
+            }).catch(() => {})
+          }
+          localStorage.clear()
+          window.location.href = '/login.html'
+        },
+
+        // Renova o access token usando o refresh token
+        async renovarToken() {
+          try {
+            const res = await fetch('/auth/refresh', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ refreshToken: localStorage.getItem('refreshToken') })
+            })
+            if (!res.ok) return false
+            const data = await res.json()
+            this.token = data.token
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('refreshToken', data.refreshToken)
+            return true
+          } catch { return false }
+        },
+
+        // Wrapper de fetch com renovação automática de token em caso de 401
+        async req(method, path, body) {
+          const fazer = (tkn) => fetch(path, {
+            method,
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + tkn
+            },
+            body: body !== undefined ? JSON.stringify(body) : undefined
+          })
+
+          let res = await fazer(this.token)
+
+          if (res.status === 401) {
+            const ok = await this.renovarToken()
+            if (!ok) { this.sair(); return null }
+            res = await fazer(this.token)
+          }
+
+          return res
+        },
+
+        // ── Cardápio ──────────────────────────────────────────
+        async carregarItens() {
+          this.erroCardapio = ''
+          try {
+            const res = await this.req('GET', '/itens')
+            if (!res) return
+            if (!res.ok) { this.erroCardapio = 'Erro ao carregar os itens.'; return }
+            this.itens = await res.json()
+          } catch { this.erroCardapio = 'Erro de conexão com o servidor.' }
+        },
+
+        nomeCategoria(cat) {
+          return { BEBIDAS: 'Bebidas', PORCOES: 'Porções', LANCHES: 'Lanches' }[cat] || cat
+        },
+
+        formatarPreco(preco) {
+          return 'R$ ' + Number(preco).toFixed(2).replace('.', ',')
+        },
+
+        abrirModalNovo() {
+          this.form = { nome: '', categoria: '', preco: '', descricao: '', status: 'ATIVO' }
+          this.erroModal = ''
+          this.modalNovo = true
+        },
+
+        async salvarNovoItem() {
+          if (!this.form.nome || !this.form.categoria || !this.form.preco) {
+            this.erroModal = 'Preencha os campos obrigatórios (*).'
+            return
+          }
+          this.salvando = true
+          this.erroModal = ''
+          try {
+            const res = await this.req('POST', '/itens', {
+              nome:      this.form.nome,
+              categoria: this.form.categoria,
+              preco:     parseFloat(this.form.preco),
+              descricao: this.form.descricao || null
+            })
+            if (!res) return
+            if (!res.ok) {
+              const d = await res.json()
+              this.erroModal = d.error || 'Erro ao salvar item.'
+              return
+            }
+            this.modalNovo = false
+            await this.carregarItens()
+          } catch { this.erroModal = 'Erro de conexão.' }
+          finally { this.salvando = false }
+        },
+
+        abrirModalEditar(item) {
+          this.itemEditando = item
+          this.form = { ...item, preco: Number(item.preco) }
+          this.erroModal = ''
+          this.modalEditar = true
+        },
+
+        async salvarEdicao() {
+          this.salvando = true
+          this.erroModal = ''
+          try {
+            const res = await this.req('PATCH', '/itens/' + this.itemEditando.id, {
+              nome:      this.form.nome,
+              categoria: this.form.categoria,
+              preco:     parseFloat(this.form.preco),
+              status:    this.form.status,
+              descricao: this.form.descricao || null
+            })
+            if (!res) return
+            if (!res.ok) {
+              const d = await res.json()
+              this.erroModal = d.error || 'Erro ao salvar.'
+              return
+            }
+            this.modalEditar = false
+            await this.carregarItens()
+          } catch { this.erroModal = 'Erro de conexão.' }
+          finally { this.salvando = false }
+        },
+
+        async excluirItem(item) {
+          if (!confirm(`Excluir "${item.nome}"? Esta ação não pode ser desfeita.`)) return
+          try {
+            const res = await this.req('DELETE', '/itens/' + item.id)
+            if (!res) return
+            if (!res.ok) { alert('Erro ao excluir o item.'); return }
+            await this.carregarItens()
+          } catch { alert('Erro de conexão.') }
+        },
+
+        // ── Usuários ──────────────────────────────────────────
+        async cadastrarUsuario() {
+          this.erroUsuario = ''
+          this.sucessoUsuario = ''
+          const u = this.novoUsuario
+          if (!u.nome || !u.usuario || !u.senha || !u.cargo) {
+            this.erroUsuario = 'Preencha todos os campos.'
+            return
+          }
+          this.salvandoUsuario = true
+          try {
+            const res = await this.req('POST', '/usuarios', { ...u })
+            if (!res) return
+            if (!res.ok) {
+              const d = await res.json()
+              this.erroUsuario = d.error || 'Erro ao cadastrar usuário.'
+              return
+            }
+            this.sucessoUsuario = `Usuário "${u.usuario}" cadastrado com sucesso!`
+            this.novoUsuario = { nome: '', usuario: '', senha: '', cargo: '' }
+          } catch { this.erroUsuario = 'Erro de conexão.' }
+          finally { this.salvandoUsuario = false }
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>

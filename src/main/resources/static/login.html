@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login — Golden Petiscaria</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #ebebeb;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+    }
+
+    .card {
+      background: white;
+      border: 1px solid #ccc;
+      padding: 44px 48px;
+      width: 460px;
+    }
+
+    .titulo {
+      text-align: center;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      color: #1a1a2e;
+    }
+
+    .subtitulo {
+      text-align: center;
+      color: #5a6abf;
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #e0e0e0;
+      margin: 24px 0;
+    }
+
+    label {
+      display: block;
+      font-size: 14px;
+      color: #333;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ccc;
+      font-size: 14px;
+      margin-bottom: 18px;
+      outline: none;
+    }
+
+    input:focus { border-color: #1a1a2e; }
+
+    .btn-entrar {
+      width: 100%;
+      padding: 13px;
+      background: #1a1a2e;
+      color: white;
+      border: none;
+      font-size: 15px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+    }
+
+    .btn-entrar:hover:not(:disabled) { background: #2a2a4e; }
+    .btn-entrar:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .info {
+      text-align: center;
+      font-size: 13px;
+      color: #888;
+      margin-top: 16px;
+    }
+
+    .erro {
+      background: #fff0f0;
+      border: 1px solid #f5c2c2;
+      color: #c00;
+      font-size: 13px;
+      padding: 10px 14px;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <div class="card">
+      <div class="titulo">GOLDEN PETISCARIA</div>
+      <div class="subtitulo">Sistema de Controle de Pedidos</div>
+      <hr>
+
+      <div v-if="erro" class="erro">{{ erro }}</div>
+
+      <label>Usuário</label>
+      <input v-model="usuario" type="text" placeholder="Digite seu usuário" @keyup.enter="login">
+
+      <label>Senha</label>
+      <input v-model="senha" type="password" placeholder="Digite sua senha" @keyup.enter="login">
+
+      <button class="btn-entrar" @click="login" :disabled="carregando">
+        {{ carregando ? 'Entrando...' : 'Entrar no sistema' }}
+      </button>
+
+      <p class="info">Acesso restrito. Solicite seu cadastro ao gerente.</p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script>
+    const { createApp } = Vue
+
+    createApp({
+      data() {
+        return {
+          usuario: '',
+          senha: '',
+          erro: '',
+          carregando: false
+        }
+      },
+
+      mounted() {
+        // Se já estiver logado, vai direto pro dashboard
+        if (localStorage.getItem('token')) {
+          window.location.href = '/dashboard.html'
+        }
+      },
+
+      methods: {
+        async login() {
+          if (!this.usuario.trim() || !this.senha.trim()) {
+            this.erro = 'Preencha usuário e senha.'
+            return
+          }
+
+          this.carregando = true
+          this.erro = ''
+
+          try {
+            // Autentica
+            const res = await fetch('/auth/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ usuario: this.usuario, senha: this.senha })
+            })
+
+            const data = await res.json()
+
+            if (!res.ok) {
+              this.erro = data.error || 'Usuário ou senha inválidos.'
+              return
+            }
+
+            localStorage.setItem('token', data.token)
+            localStorage.setItem('refreshToken', data.refreshToken)
+            localStorage.setItem('usuario', this.usuario)
+
+            // Detecta o cargo tentando um endpoint exclusivo de GERENTE.
+            // DELETE /itens/0 → 403 se OPERADOR, 404 se GERENTE (item não existe).
+            const cargoRes = await fetch('/itens/0', {
+              method: 'DELETE',
+              headers: { 'Authorization': 'Bearer ' + data.token }
+            })
+            localStorage.setItem('cargo', cargoRes.status === 403 ? 'OPERADOR' : 'GERENTE')
+
+            window.location.href = '/dashboard.html'
+
+          } catch (e) {
+            this.erro = 'Erro de conexão com o servidor.'
+          } finally {
+            this.carregando = false
+          }
+        }
+      }
+    }).mount('#app')
+  </script>
+</body>
+</html>
