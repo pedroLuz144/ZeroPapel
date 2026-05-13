@@ -1,6 +1,5 @@
 package com.goldenpetiscaria.zeropapel.domain.entity;
 
-import com.goldenpetiscaria.zeropapel.domain.enums.Categoria;
 import com.goldenpetiscaria.zeropapel.domain.enums.Status;
 import jakarta.persistence.*;
 import lombok.Getter;
@@ -23,8 +22,8 @@ public class Item {
     @Column(nullable = false)
     private String nome;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @ManyToOne
+    @JoinColumn(name = "categoria_id", nullable = false)
     private Categoria categoria;
 
     @Column(nullable = false)

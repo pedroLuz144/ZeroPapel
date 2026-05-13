@@ -1,10 +1,11 @@
 package com.goldenpetiscaria.zeropapel.controller;
 
-import com.goldenpetiscaria.zeropapel.domain.entity.Item;
-import com.goldenpetiscaria.zeropapel.domain.service.ItemServiceImpl;
+import com.goldenpetiscaria.zeropapel.domain.service.ItemService;
 import com.goldenpetiscaria.zeropapel.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.dto.request.AtualizarItemRequest;
+import com.goldenpetiscaria.zeropapel.dto.response.ItemResponseDTO;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,35 +15,34 @@ import java.util.List;
 @RequestMapping("/itens")
 public class ItemController {
 
-    private final ItemServiceImpl service;
+    private final ItemService service;
 
-    public ItemController(ItemServiceImpl service) {
+    public ItemController(ItemService service) {
         this.service = service;
     }
 
     @PostMapping
-    @ResponseStatus(org.springframework.http.HttpStatus.CREATED)
+    @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('GERENTE')")
-    public Item adicionarItemAoCardapio(@RequestBody @Valid AdicionarItemRequest request) {
+    public ItemResponseDTO adicionarItemAoCardapio(@RequestBody @Valid AdicionarItemRequest request) {
         return service.adicionarItemAoCardapio(request);
     }
 
     @GetMapping
-    public List<Item> visualizarCardapio() {
+    public List<ItemResponseDTO> visualizarCardapio() {
         return service.visualizarCardapio();
     }
 
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('GERENTE')")
-    public Item atualizarItem(@PathVariable Long id, @RequestBody @Valid AtualizarItemRequest request) {
+    public ItemResponseDTO atualizarItem(@PathVariable Long id, @RequestBody @Valid AtualizarItemRequest request) {
         return service.atualizarItem(id, request);
     }
 
     @DeleteMapping("/{id}")
-    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('GERENTE')")
     public void excluirItemDoCardapio(@PathVariable Long id) {
         service.excluirItemDoCardapio(id);
     }
-
 }
