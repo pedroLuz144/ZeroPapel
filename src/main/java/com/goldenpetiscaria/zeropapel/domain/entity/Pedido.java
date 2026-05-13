@@ -1,0 +1,42 @@
+package com.goldenpetiscaria.zeropapel.domain.entity;
+
+import jakarta.persistence.*;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Entity
+@Table(name = "pedidos")
+@Getter
+@Setter
+@NoArgsConstructor
+public class Pedido {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "plataforma_id", nullable = false)
+    private Plataforma plataforma;
+
+    @ManyToOne
+    @JoinColumn(name = "cliente_id", nullable = false)
+    private Cliente cliente;
+
+    @Column(nullable = false)
+    private LocalDateTime horarioPedido;
+
+    @OneToMany
+    private List<Item> itens;
+
+    @ManyToOne
+    @JoinColumn(name = "forma_de_pagamento_id", nullable = false)
+    private FormaDePagamento formaDePagamento;
+
+    private BigDecimal valor;
+}

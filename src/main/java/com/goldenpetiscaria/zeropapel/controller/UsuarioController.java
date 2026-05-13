@@ -1,6 +1,6 @@
 package com.goldenpetiscaria.zeropapel.controller;
 
-import com.goldenpetiscaria.zeropapel.domain.service.UsuarioService;
+import com.goldenpetiscaria.zeropapel.domain.service.contratos.UsuarioService;
 import com.goldenpetiscaria.zeropapel.dto.request.CadastrarUsuarioRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;

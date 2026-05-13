@@ -1,7 +1,7 @@
 package com.goldenpetiscaria.zeropapel.controller;
 
 import com.goldenpetiscaria.zeropapel.domain.entity.Usuario;
-import com.goldenpetiscaria.zeropapel.domain.service.RefreshTokenService;
+import com.goldenpetiscaria.zeropapel.domain.service.contratos.RefreshTokenService;
 import com.goldenpetiscaria.zeropapel.dto.request.LoginRequest;
 import com.goldenpetiscaria.zeropapel.dto.request.RefreshRequest;
 import com.goldenpetiscaria.zeropapel.dto.response.LoginResponse;

@@ -1,6 +1,7 @@
-package com.goldenpetiscaria.zeropapel.domain.service;
+package com.goldenpetiscaria.zeropapel.domain.service.implementacoes;
 
 import com.goldenpetiscaria.zeropapel.domain.entity.Usuario;
+import com.goldenpetiscaria.zeropapel.domain.service.contratos.UsuarioService;
 import com.goldenpetiscaria.zeropapel.dto.request.CadastrarUsuarioRequest;
 import com.goldenpetiscaria.zeropapel.infra.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.repository.UsuarioRepository;

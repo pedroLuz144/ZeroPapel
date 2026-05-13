@@ -1,7 +1,8 @@
-package com.goldenpetiscaria.zeropapel.domain.service;
+package com.goldenpetiscaria.zeropapel.domain.service.implementacoes;
 
 import com.goldenpetiscaria.zeropapel.domain.entity.Categoria;
 import com.goldenpetiscaria.zeropapel.domain.entity.Item;
+import com.goldenpetiscaria.zeropapel.domain.service.contratos.ItemService;
 import com.goldenpetiscaria.zeropapel.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.dto.response.ItemResponseDTO;

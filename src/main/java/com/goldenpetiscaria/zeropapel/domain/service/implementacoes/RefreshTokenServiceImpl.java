@@ -1,7 +1,8 @@
-package com.goldenpetiscaria.zeropapel.domain.service;
+package com.goldenpetiscaria.zeropapel.domain.service.implementacoes;
 
 import com.goldenpetiscaria.zeropapel.domain.entity.RefreshToken;
 import com.goldenpetiscaria.zeropapel.domain.entity.Usuario;
+import com.goldenpetiscaria.zeropapel.domain.service.contratos.RefreshTokenService;
 import com.goldenpetiscaria.zeropapel.infra.exception.TokenInvalidoException;
 import com.goldenpetiscaria.zeropapel.repository.RefreshTokenRepository;
 import jakarta.transaction.Transactional;
