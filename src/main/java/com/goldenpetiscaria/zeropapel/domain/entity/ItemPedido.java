@@ -8,19 +8,27 @@ import lombok.Setter;
 import java.math.BigDecimal;
 
 @Entity
-@Table(name = "plataforma")
+@Table(name = "itens_pedido")
 @Getter
 @Setter
 @NoArgsConstructor
-public class Plataforma {
+public class ItemPedido {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true)
-    private String nome;
+    @ManyToOne
+    @JoinColumn(name = "pedido_id", nullable = false)
+    private Pedido pedido;
+
+    @ManyToOne
+    @JoinColumn(name = "item_id", nullable = false)
+    private Item item;
 
     @Column(nullable = false)
-    private BigDecimal taxaPercentual;
+    private Integer quantidade;
+
+    @Column(nullable = false)
+    private BigDecimal precoUnitario;
 }

@@ -1,8 +1,8 @@
 package com.goldenpetiscaria.zeropapel.domain.service.contratos;
 
-import com.goldenpetiscaria.zeropapel.dto.request.AdicionarCategoriaRequest;
-import com.goldenpetiscaria.zeropapel.dto.request.AtualizarCategoriaRequest;
-import com.goldenpetiscaria.zeropapel.dto.response.CategoriaResponseDTO;
+import com.goldenpetiscaria.zeropapel.dto.request.AdicionarPlataformaRequest;
+import com.goldenpetiscaria.zeropapel.dto.request.AtualizarPlataformaRequest;
+import com.goldenpetiscaria.zeropapel.dto.response.PlataformaResponseDTO;
 
 import java.util.List;
 

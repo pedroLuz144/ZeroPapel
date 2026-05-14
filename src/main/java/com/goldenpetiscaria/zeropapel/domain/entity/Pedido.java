@@ -24,19 +24,18 @@ public class Pedido {
     @JoinColumn(name = "plataforma_id", nullable = false)
     private Plataforma plataforma;
 
-    @ManyToOne
-    @JoinColumn(name = "cliente_id", nullable = false)
-    private Cliente cliente;
+    private String nomeCliente;
 
-    @Column(nullable = false)
+    @Column(name = "horario_pedido", nullable = false)
     private LocalDateTime horarioPedido;
 
-    @OneToMany
-    private List<Item> itens;
+    @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<ItemPedido> itens;
 
     @ManyToOne
     @JoinColumn(name = "forma_de_pagamento_id", nullable = false)
     private FormaDePagamento formaDePagamento;
 
+    @Column(nullable = false)
     private BigDecimal valor;
 }
