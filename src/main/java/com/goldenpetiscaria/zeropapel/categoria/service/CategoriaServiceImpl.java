@@ -7,7 +7,7 @@ import com.goldenpetiscaria.zeropapel.categoria.entity.Categoria;
 import com.goldenpetiscaria.zeropapel.categoria.repository.CategoriaRepository;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.item.service.ItemRepository;
+import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

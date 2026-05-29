@@ -1,4 +1,4 @@
-package com.goldenpetiscaria.zeropapel.item.repository;
+package com.goldenpetiscaria.zeropapel.item.service;
 
 import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;

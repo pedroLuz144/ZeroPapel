@@ -1,4 +1,4 @@
-package com.goldenpetiscaria.zeropapel.item.service;
+package com.goldenpetiscaria.zeropapel.item.repository;
 
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
 import org.springframework.data.jpa.repository.JpaRepository;

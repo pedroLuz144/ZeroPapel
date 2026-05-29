@@ -1,4 +1,4 @@
-package com.goldenpetiscaria.zeropapel.item.repository;
+package com.goldenpetiscaria.zeropapel.item.service;
 
 import com.goldenpetiscaria.zeropapel.categoria.entity.Categoria;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
@@ -7,7 +7,7 @@ import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.response.ItemResponseDTO;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
-import com.goldenpetiscaria.zeropapel.item.service.ItemRepository;
+import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

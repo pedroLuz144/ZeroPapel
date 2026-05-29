@@ -3,7 +3,7 @@ package com.goldenpetiscaria.zeropapel.item.controller;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.response.ItemResponseDTO;
-import com.goldenpetiscaria.zeropapel.item.repository.ItemService;
+import com.goldenpetiscaria.zeropapel.item.service.ItemService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;

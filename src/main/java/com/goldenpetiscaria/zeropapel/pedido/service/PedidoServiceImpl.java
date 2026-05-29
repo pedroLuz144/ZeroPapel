@@ -13,7 +13,7 @@ import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
-import com.goldenpetiscaria.zeropapel.item.service.ItemRepository;
+import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.repository.PlataformaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
