@@ -4,6 +4,7 @@ import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,18 +23,25 @@ public class Usuario implements UserDetails {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Setter
     @Column(nullable = false)
     private String nome;
 
     @Column(nullable = false, unique = true)
     private String usuario;
 
+    @Setter
     @Column(nullable = false)
     private String senha;
 
+    @Setter
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Cargo cargo;
+
+    @Setter
+    @Column(nullable = false)
+    private boolean ativo = true;
 
     public Usuario(String nome, String usuario, String senha, Cargo cargo) {
         this.nome = nome;
@@ -74,6 +82,6 @@ public class Usuario implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return true;
+        return ativo;
     }
 }
