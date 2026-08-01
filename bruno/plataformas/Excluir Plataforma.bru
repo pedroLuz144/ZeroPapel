@@ -1,0 +1,15 @@
+meta {
+  name: Excluir Plataforma
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/plataformas/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -1,0 +1,15 @@
+meta {
+  name: Excluir Categoria
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/categorias/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

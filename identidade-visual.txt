@@ -1,0 +1,75 @@
+IDENTIDADE VISUAL — ZeroPapel
+Extraída dos slides Gamma (pré-banca)
+=====================================
+
+PALETA DE CORES
+---------------
+Fundo (gradiente):     #e8f4f8 → #f0f8ff  (azul muito claro, quase branco, canto sup-esq para inf-dir)
+Texto principal:       #111111  (preto quase puro)
+Destaque / Accent:     #10b981  (teal/verde-água — usado nas palavras em destaque nos títulos)
+Sidebar / Dark:        #1a1a2e  (azul-marinho escuro — já usado no dashboard atual)
+Card background:       #ffffff  (branco)
+Card borda esquerda:   #3b82f6  (azul médio)
+Callout background:    #dbeafe  (azul bem claro — caixas de info/destaque)
+Callout texto:         #1e40af  (azul escuro)
+Texto secundário:      #555555  (cinza médio)
+
+
+TIPOGRAFIA
+----------
+Família:    Sans-serif (provavelmente Inter ou similar — sem serifa, geométrica)
+Títulos:    Bold (~700), tamanho grande, mix de cor preta + palavra em teal
+Subtítulos: Semibold (~600), preto
+Corpo:      Regular (~400), cinza escuro
+Labels:     Regular, tamanho menor, cinza médio
+
+
+PADRÃO DE TÍTULO (dos slides)
+------------------------------
+Palavra normal em preto + palavra de destaque em teal
+Exemplo:  "Stack <teal>Tecnológico</teal>"
+          "Objetivos e <teal>Motivações</teal>"
+          "O Problema que o <teal>ZeroPapel</teal> Resolve"
+
+
+COMPONENTES VISUAIS
+--------------------
+Card padrão:
+  - fundo branco
+  - borda esquerda 3-4px sólida azul (#3b82f6)
+  - padding interno generoso
+  - sem sombra ou sombra muito sutil
+  - título em bold preto + descrição em cinza
+
+Callout / Info box:
+  - fundo azul claro (#dbeafe)
+  - ícone de info (ⓘ) à esquerda
+  - texto em azul escuro
+  - usado para observações importantes / destaque técnico
+
+Fundo da página:
+  - gradiente suave diagonal, de #e8f4f8 (canto sup-esq) para branco (centro/dir)
+  - sem texturas, completamente limpo
+
+Setas / ícones de lista:
+  - → (seta direita) em teal como marcador de lista (em vez de bullet •)
+
+
+LAYOUT
+-------
+Espaçamento generoso entre elementos
+Grid de cards: 2 ou 3 colunas, espaçamento uniforme
+Sem bordas duras na página, transições suaves
+Alinhamento à esquerda para textos longos
+
+
+APLICAÇÃO NO DASHBOARD (o que mudar)
+--------------------------------------
+[ ] Fundo do content area: trocar branco puro por gradiente suave (#f0f8ff → #ffffff)
+[ ] Títulos de seção: adotar padrão "palavra normal + palavra teal"
+[ ] Cards da tabela / modais: adicionar borda esquerda azul nos elementos de destaque
+[ ] Cor de destaque atual (#1a1a2e nos links/botões): considerar complementar com teal (#10b981)
+    para ações secundárias / badges de status ativo
+[ ] Mensagem de sucesso: já usa verde — alinhar tom com o teal (#10b981)
+[ ] Botão primário: pode manter #1a1a2e (já combina com a identidade escura dos slides)
+[ ] Setas → nos itens de lista: adotar como estilo de marcador onde aplicável

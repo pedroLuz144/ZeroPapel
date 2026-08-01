@@ -1,0 +1,22 @@
+meta {
+  name: Atualizar Plataforma
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/plataformas/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "iFood",
+    "taxaPercentual": 13.50
+  }
+}

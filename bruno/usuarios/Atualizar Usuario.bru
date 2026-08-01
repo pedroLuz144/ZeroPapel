@@ -1,0 +1,23 @@
+meta {
+  name: Atualizar Usuario
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/usuarios/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "João Silva Atualizado",
+    "cargo": "GERENTE",
+    "senha": "novaSenha123"
+  }
+}

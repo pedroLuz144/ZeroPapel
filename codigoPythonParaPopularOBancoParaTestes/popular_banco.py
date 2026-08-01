@@ -62,8 +62,8 @@ FORMAS_DE_PAGAMENTO = [
 
 # (nome_completo, usuario, senha_em_texto, cargo)
 USUARIOS = [
-    ("Carlos Gerente", "carlos", "senha123", "GERENTE"),
-    ("Ana Operadora",  "ana",    "senha123", "OPERADOR"),
+    ("Eliane Gerente", "eliane", "1234", "GERENTE"),
+    ("Wellington Operadora",  "wellington",    "1234", "OPERADOR"),
 ]
 
 # Pedidos da noite de 13/05/2026 — use este intervalo no POST /fechamento:
@@ -175,8 +175,8 @@ def popular_banco():
         for nome_completo, usuario, senha_texto, cargo in USUARIOS:
             senha_hash = gerar_hash_senha(senha_texto)
             cursor.execute(
-                "INSERT INTO usuarios (nome, usuario, senha, cargo) VALUES (%s, %s, %s, %s)",
-                (nome_completo, usuario, senha_hash, cargo)
+                "INSERT INTO usuarios (nome, usuario, senha, cargo, ativo) VALUES (%s, %s, %s, %s, %s)",
+                (nome_completo, usuario, senha_hash, cargo, True)
             )
 
         # --- Pedidos e itens de cada pedido ---

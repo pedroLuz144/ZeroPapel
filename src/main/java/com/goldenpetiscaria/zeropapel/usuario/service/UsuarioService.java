@@ -11,4 +11,5 @@ public interface UsuarioService {
     List<UsuarioResponseDTO> listarUsuarios();
     UsuarioResponseDTO atualizarUsuario(Long id, AtualizarUsuarioRequest request);
     void desativarUsuario(Long id);
+    void ativarUsuario(Long id);
 }

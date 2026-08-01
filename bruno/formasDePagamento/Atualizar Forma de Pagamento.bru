@@ -1,0 +1,22 @@
+meta {
+  name: Atualizar Forma de Pagamento
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/formasDePagamento/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Cartão de Crédito",
+    "taxaPercentual": 4.00
+  }
+}

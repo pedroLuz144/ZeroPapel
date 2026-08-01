@@ -1,0 +1,33 @@
+meta {
+  name: Registrar Pedido
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/pedidos
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "plataformaId": 1,
+    "nomeCliente": "Maria",
+    "formaDePagamentoId": 1,
+    "itens": [
+      {
+        "itemId": 1,
+        "quantidade": 2
+      },
+      {
+        "itemId": 3,
+        "quantidade": 1
+      }
+    ]
+  }
+}

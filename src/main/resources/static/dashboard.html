@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — Golden Petiscaria</title>
+  <title>Dashboard - Golden Petiscaria</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -44,7 +44,7 @@
 
     .sidebar-secao {
       font-size: 10px;
-      color: #6666888;
+      color: #666888;
       letter-spacing: 1px;
       padding: 16px 16px 6px;
       color: #7777aa;
@@ -316,7 +316,7 @@
         <div class="sub">Sistema de Pedidos</div>
       </div>
       <div class="sidebar-secao">MENU</div>
-      <div class="sidebar-item">PDV — Balcão</div>
+      <div class="sidebar-item">PDV - Balcão</div>
       <div class="sidebar-item">Painel de Pedidos</div>
       <div class="sidebar-item">Dashboard Financeiro</div>
       <div class="sidebar-item ativo">Configurações</div>
@@ -374,7 +374,7 @@
               </tr>
               <tr v-for="item in itens" :key="item.id">
                 <td>{{ item.nome }}</td>
-                <td>{{ nomeCategoria(item.categoria) }}</td>
+                <td>{{ item.categoriaNome }}</td>
                 <td>{{ formatarPreco(item.preco) }}</td>
                 <td>
                   <span class="badge-status" :class="item.status === 'ATIVO' ? 'ativo' : 'inativo'">
@@ -393,43 +393,57 @@
         <!-- ── Aba: Usuários ── -->
         <div v-if="aba === 'usuarios'">
           <div v-if="!isGerente" class="sem-permissao">
-            Apenas gerentes podem cadastrar novos usuários.
+            Apenas gerentes podem gerenciar usuários.
           </div>
-          <div v-else style="max-width:400px;">
-            <h3 style="font-size:15px;margin-bottom:18px;color:#222;">Cadastrar Novo Usuário</h3>
+          <div v-else>
+            <div class="barra-topo-tabela">
+              <span class="contagem">
+                {{ usuarios.length }} {{ usuarios.length === 1 ? 'usuário cadastrado' : 'usuários cadastrados' }}
+              </span>
+              <button class="btn-primario" @click="abrirModalNovoUsuario">+ Novo usuário</button>
+            </div>
 
-            <div v-if="erroUsuario" class="msg-erro">{{ erroUsuario }}</div>
-            <div v-if="sucessoUsuario" class="msg-sucesso">{{ sucessoUsuario }}</div>
+            <div v-if="erroUsuarios" class="msg-erro">{{ erroUsuarios }}</div>
 
-            <div class="campo">
-              <label>Nome completo</label>
-              <input v-model="novoUsuario.nome" type="text" placeholder="Ex: Carlos Mendes">
-            </div>
-            <div class="campo">
-              <label>Usuário (login)</label>
-              <input v-model="novoUsuario.usuario" type="text" placeholder="Ex: carlos">
-            </div>
-            <div class="campo">
-              <label>Senha</label>
-              <input v-model="novoUsuario.senha" type="password" placeholder="Mínimo 4 caracteres">
-            </div>
-            <div class="campo">
-              <label>Cargo</label>
-              <select v-model="novoUsuario.cargo">
-                <option value="">Selecione...</option>
-                <option value="GERENTE">Gerente</option>
-                <option value="OPERADOR">Operador</option>
-              </select>
-            </div>
-            <button class="btn-primario" @click="cadastrarUsuario" :disabled="salvandoUsuario">
-              {{ salvandoUsuario ? 'Salvando...' : 'Cadastrar Usuário' }}
-            </button>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nome</th>
+                  <th>Login</th>
+                  <th>Cargo</th>
+                  <th>Status</th>
+                  <th>Ação</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-if="usuarios.length === 0 && !erroUsuarios">
+                  <td colspan="5" style="text-align:center;color:#aaa;padding:24px;">
+                    Nenhum usuário cadastrado.
+                  </td>
+                </tr>
+                <tr v-for="u in usuarios" :key="u.id">
+                  <td>{{ u.nome }}</td>
+                  <td>{{ u.usuario }}</td>
+                  <td>{{ u.cargo === 'GERENTE' ? 'Gerente' : 'Operador' }}</td>
+                  <td>
+                    <span class="badge-status" :class="u.ativo ? 'ativo' : 'inativo'">
+                      {{ u.ativo ? 'Ativo' : 'Inativo' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="link-acao" @click="abrirModalEditarUsuario(u)">Editar</span>
+                    <span v-if="u.ativo" class="link-acao excluir" @click="desativarUsuario(u)">Desativar</span>
+                    <span v-else class="link-acao" @click="ativarUsuario(u)">Ativar</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 
         <!-- ── Aba: Integrações ── -->
         <div v-if="aba === 'integracoes'">
-          <div class="placeholder">Em breve — integrações não disponíveis nesta versão.</div>
+          <div class="placeholder">Em breve - integrações não disponíveis nesta versão.</div>
         </div>
 
       </div>
@@ -448,9 +462,7 @@
           <label>Categoria *</label>
           <select v-model="form.categoria">
             <option value="">Selecione...</option>
-            <option value="BEBIDAS">Bebidas</option>
-            <option value="PORCOES">Porções</option>
-            <option value="LANCHES">Lanches</option>
+            <option v-for="cat in categorias" :key="cat.id" :value="cat.id">{{ cat.nome }}</option>
           </select>
         </div>
         <div class="campo">
@@ -482,9 +494,7 @@
         <div class="campo">
           <label>Categoria</label>
           <select v-model="form.categoria">
-            <option value="BEBIDAS">Bebidas</option>
-            <option value="PORCOES">Porções</option>
-            <option value="LANCHES">Lanches</option>
+            <option v-for="cat in categorias" :key="cat.id" :value="cat.id">{{ cat.nome }}</option>
           </select>
         </div>
         <div class="campo">
@@ -511,6 +521,73 @@
       </div>
     </div>
 
+    <!-- ── Modal: Novo Usuário ── -->
+    <div v-if="modalNovoUsuario" class="modal-fundo" @click.self="modalNovoUsuario = false">
+      <div class="modal">
+        <h3>Novo Usuário</h3>
+        <div v-if="erroModalUsuario" class="msg-erro">{{ erroModalUsuario }}</div>
+        <div class="campo">
+          <label>Nome completo *</label>
+          <input v-model="formUsuario.nome" type="text" placeholder="Ex: Carlos Mendes">
+        </div>
+        <div class="campo">
+          <label>Login *</label>
+          <input v-model="formUsuario.usuario" type="text" placeholder="Ex: carlos">
+        </div>
+        <div class="campo">
+          <label>Senha *</label>
+          <input v-model="formUsuario.senha" type="password" placeholder="Mínimo 4 caracteres">
+        </div>
+        <div class="campo">
+          <label>Cargo *</label>
+          <select v-model="formUsuario.cargo">
+            <option value="">Selecione...</option>
+            <option value="GERENTE">Gerente</option>
+            <option value="OPERADOR">Operador</option>
+          </select>
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-secundario" @click="modalNovoUsuario = false">Cancelar</button>
+          <button class="btn-primario" @click="salvarNovoUsuario" :disabled="salvandoUsuario">
+            {{ salvandoUsuario ? 'Salvando...' : 'Cadastrar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Modal: Editar Usuário ── -->
+    <div v-if="modalEditarUsuario" class="modal-fundo" @click.self="modalEditarUsuario = false">
+      <div class="modal">
+        <h3>Editar Usuário</h3>
+        <div v-if="erroModalUsuario" class="msg-erro">{{ erroModalUsuario }}</div>
+        <div class="campo">
+          <label>Nome completo</label>
+          <input v-model="formUsuario.nome" type="text">
+        </div>
+        <div class="campo">
+          <label>Usuário (login)</label>
+          <input v-model="formUsuario.usuario" type="text">
+        </div>
+        <div class="campo">
+          <label>Cargo</label>
+          <select v-model="formUsuario.cargo">
+            <option value="GERENTE">Gerente</option>
+            <option value="OPERADOR">Operador</option>
+          </select>
+        </div>
+        <div class="campo">
+          <label>Nova senha <span style="color:#aaa;font-size:12px;">(deixe em branco para não alterar)</span></label>
+          <input v-model="formUsuario.senha" type="password" placeholder="Mínimo 4 caracteres">
+        </div>
+        <div class="modal-acoes">
+          <button class="btn-secundario" @click="modalEditarUsuario = false">Cancelar</button>
+          <button class="btn-primario" @click="salvarEdicaoUsuario" :disabled="salvandoUsuario">
+            {{ salvandoUsuario ? 'Salvando...' : 'Salvar' }}
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
@@ -527,6 +604,7 @@
 
           // Cardápio
           itens:        [],
+          categorias:   [],
           erroCardapio: '',
 
           // Modais de item
@@ -538,10 +616,14 @@
           salvando:    false,
 
           // Usuários
-          novoUsuario:   { nome: '', usuario: '', senha: '', cargo: '' },
-          erroUsuario:   '',
-          sucessoUsuario: '',
-          salvandoUsuario: false,
+          usuarios:          [],
+          erroUsuarios:      '',
+          modalNovoUsuario:  false,
+          modalEditarUsuario: false,
+          usuarioEditando:   null,
+          formUsuario:       { nome: '', usuario: '', senha: '', cargo: '' },
+          erroModalUsuario:  '',
+          salvandoUsuario:   false,
         }
       },
 
@@ -551,7 +633,7 @@
 
       async mounted() {
         if (!this.token) { window.location.href = '/login.html'; return }
-        await this.carregarItens()
+        await Promise.all([this.carregarItens(), this.carregarCategorias(), this.carregarUsuarios()])
       },
 
       methods: {
@@ -620,8 +702,11 @@
           } catch { this.erroCardapio = 'Erro de conexão com o servidor.' }
         },
 
-        nomeCategoria(cat) {
-          return { BEBIDAS: 'Bebidas', PORCOES: 'Porções', LANCHES: 'Lanches' }[cat] || cat
+        async carregarCategorias() {
+          try {
+            const res = await this.req('GET', '/categorias')
+            if (res && res.ok) this.categorias = await res.json()
+          } catch {}
         },
 
         formatarPreco(preco) {
@@ -662,7 +747,13 @@
 
         abrirModalEditar(item) {
           this.itemEditando = item
-          this.form = { ...item, preco: Number(item.preco) }
+          this.form = {
+            nome:      item.nome,
+            categoria: item.categoriaId,
+            preco:     Number(item.preco),
+            status:    item.status,
+            descricao: item.descricao
+          }
           this.erroModal = ''
           this.modalEditar = true
         },
@@ -701,27 +792,91 @@
         },
 
         // ── Usuários ──────────────────────────────────────────
-        async cadastrarUsuario() {
-          this.erroUsuario = ''
-          this.sucessoUsuario = ''
-          const u = this.novoUsuario
-          if (!u.nome || !u.usuario || !u.senha || !u.cargo) {
-            this.erroUsuario = 'Preencha todos os campos.'
+        async carregarUsuarios() {
+          this.erroUsuarios = ''
+          try {
+            const res = await this.req('GET', '/usuarios')
+            if (!res) return
+            if (!res.ok) { this.erroUsuarios = 'Erro ao carregar usuários.'; return }
+            this.usuarios = await res.json()
+          } catch { this.erroUsuarios = 'Erro de conexão com o servidor.' }
+        },
+
+        abrirModalNovoUsuario() {
+          this.formUsuario = { nome: '', usuario: '', senha: '', cargo: '' }
+          this.erroModalUsuario = ''
+          this.modalNovoUsuario = true
+        },
+
+        async salvarNovoUsuario() {
+          const f = this.formUsuario
+          if (!f.nome || !f.usuario || !f.senha || !f.cargo) {
+            this.erroModalUsuario = 'Preencha todos os campos obrigatórios (*).'
             return
           }
           this.salvandoUsuario = true
+          this.erroModalUsuario = ''
           try {
-            const res = await this.req('POST', '/usuarios', { ...u })
+            const res = await this.req('POST', '/usuarios', { ...f })
             if (!res) return
             if (!res.ok) {
               const d = await res.json()
-              this.erroUsuario = d.error || 'Erro ao cadastrar usuário.'
+              this.erroModalUsuario = d.error || 'Erro ao cadastrar usuário.'
               return
             }
-            this.sucessoUsuario = `Usuário "${u.usuario}" cadastrado com sucesso!`
-            this.novoUsuario = { nome: '', usuario: '', senha: '', cargo: '' }
-          } catch { this.erroUsuario = 'Erro de conexão.' }
+            this.modalNovoUsuario = false
+            await this.carregarUsuarios()
+          } catch { this.erroModalUsuario = 'Erro de conexão.' }
           finally { this.salvandoUsuario = false }
+        },
+
+        abrirModalEditarUsuario(u) {
+          this.usuarioEditando = u
+          this.formUsuario = { nome: u.nome, usuario: u.usuario, cargo: u.cargo, senha: '' }
+          this.erroModalUsuario = ''
+          this.modalEditarUsuario = true
+        },
+
+        async salvarEdicaoUsuario() {
+          this.salvandoUsuario = true
+          this.erroModalUsuario = ''
+          const body = {}
+          if (this.formUsuario.nome)    body.nome    = this.formUsuario.nome
+          if (this.formUsuario.usuario) body.usuario = this.formUsuario.usuario
+          if (this.formUsuario.cargo)   body.cargo   = this.formUsuario.cargo
+          if (this.formUsuario.senha)   body.senha   = this.formUsuario.senha
+          try {
+            const res = await this.req('PATCH', '/usuarios/' + this.usuarioEditando.id, body)
+            if (!res) return
+            if (!res.ok) {
+              const d = await res.json()
+              this.erroModalUsuario = d.error || 'Erro ao salvar.'
+              return
+            }
+            this.modalEditarUsuario = false
+            await this.carregarUsuarios()
+          } catch { this.erroModalUsuario = 'Erro de conexão.' }
+          finally { this.salvandoUsuario = false }
+        },
+
+        async desativarUsuario(u) {
+          if (!confirm(`Desativar o usuário "${u.usuario}"?`)) return
+          try {
+            const res = await this.req('PATCH', '/usuarios/' + u.id + '/desativar')
+            if (!res) return
+            if (!res.ok) { alert('Erro ao desativar o usuário.'); return }
+            await this.carregarUsuarios()
+          } catch { alert('Erro de conexão.') }
+        },
+
+        async ativarUsuario(u) {
+          if (!confirm(`Ativar o usuário "${u.usuario}"?`)) return
+          try {
+            const res = await this.req('PATCH', '/usuarios/' + u.id + '/ativar')
+            if (!res) return
+            if (!res.ok) { alert('Erro ao ativar o usuário.'); return }
+            await this.carregarUsuarios()
+          } catch { alert('Erro de conexão.') }
         }
       }
     }).mount('#app')

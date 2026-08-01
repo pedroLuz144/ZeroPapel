@@ -59,6 +59,12 @@ public class UsuarioServiceImpl implements UsuarioService {
         if (request.nome() != null) usuario.setNome(request.nome());
         if (request.cargo() != null) usuario.setCargo(request.cargo());
         if (request.senha() != null) usuario.setSenha(passwordEncoder.encode(request.senha()));
+        if (request.usuario() != null && !request.usuario().equals(usuario.getUsuario())) {
+            if (usuarioRepository.findByUsuario(request.usuario()).isPresent()) {
+                throw new ConflitoException("Já existe um usuário com o user: " + request.usuario());
+            }
+            usuario.setUsuario(request.usuario());
+        }
 
         return toDTO(usuarioRepository.save(usuario));
     }
@@ -70,6 +76,15 @@ public class UsuarioServiceImpl implements UsuarioService {
         usuario.setAtivo(false);
         usuarioRepository.save(usuario);
         log.info("Usuário id={} desativado", id);
+    }
+
+    @Override
+    public void ativarUsuario(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
+        usuario.setAtivo(true);
+        usuarioRepository.save(usuario);
+        log.info("Usuário id={} ativado", id);
     }
 
     private UsuarioResponseDTO toDTO(Usuario usuario) {

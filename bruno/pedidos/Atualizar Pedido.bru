@@ -1,0 +1,29 @@
+meta {
+  name: Atualizar Pedido
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/pedidos/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "plataformaId": 1,
+    "nomeCliente": "Maria Atualizada",
+    "formaDePagamentoId": 2,
+    "itens": [
+      {
+        "itemId": 2,
+        "quantidade": 3
+      }
+    ]
+  }
+}

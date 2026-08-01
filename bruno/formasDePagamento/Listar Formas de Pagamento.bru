@@ -1,0 +1,15 @@
+meta {
+  name: Listar Formas de Pagamento
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/formasDePagamento
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

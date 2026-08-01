@@ -1,0 +1,22 @@
+meta {
+  name: Adicionar Forma de Pagamento
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/formasDePagamento
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Cartão de Crédito",
+    "taxaPercentual": 3.50
+  }
+}
