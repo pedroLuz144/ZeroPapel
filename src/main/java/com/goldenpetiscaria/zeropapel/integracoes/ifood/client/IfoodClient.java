@@ -7,6 +7,7 @@ import com.goldenpetiscaria.zeropapel.integracoes.ifood.dto.response.EventoPedid
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.service.PedidoService;
 
 import java.util.List;
@@ -30,6 +31,11 @@ public class IfoodClient implements PedidoService {
 
     @Override
     public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
+        return null;
+    }
+
+    @Override
+    public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status) {
         return null;
     }
 
