@@ -8,5 +8,7 @@ public record AtualizarPlataformaRequest(
         String nome,
 
         @DecimalMin(value = "0.0", message = "A taxa não pode ser negativa")
-        BigDecimal taxaPercentual
+        BigDecimal taxaPercentual,
+
+        Boolean entrega
 ) {}

@@ -33,6 +33,7 @@ public class PlataformaServiceImpl implements PlataformaService {
         Plataforma plataforma = new Plataforma();
         plataforma.setNome(request.nome());
         plataforma.setTaxaPercentual(request.taxaPercentual());
+        plataforma.setEntrega(request.entrega() == null || request.entrega());
         return toDTO(plataformaRepository.save(plataforma));
     }
 
@@ -59,6 +60,9 @@ public class PlataformaServiceImpl implements PlataformaService {
         if (request.taxaPercentual() != null) {
             plataforma.setTaxaPercentual(request.taxaPercentual());
         }
+        if (request.entrega() != null) {
+            plataforma.setEntrega(request.entrega());
+        }
         return toDTO(plataformaRepository.save(plataforma));
     }
 
@@ -73,6 +77,11 @@ public class PlataformaServiceImpl implements PlataformaService {
     }
 
     private PlataformaResponseDTO toDTO(Plataforma plataforma) {
-        return new PlataformaResponseDTO(plataforma.getId(), plataforma.getNome(), plataforma.getTaxaPercentual());
+        return new PlataformaResponseDTO(
+                plataforma.getId(),
+                plataforma.getNome(),
+                plataforma.getTaxaPercentual(),
+                plataforma.isEntrega()
+        );
     }
 }

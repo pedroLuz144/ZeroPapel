@@ -5,5 +5,6 @@ import java.math.BigDecimal;
 public record PlataformaResponseDTO(
         Long id,
         String nome,
-        BigDecimal taxaPercentual
+        BigDecimal taxaPercentual,
+        boolean entrega
 ) {}

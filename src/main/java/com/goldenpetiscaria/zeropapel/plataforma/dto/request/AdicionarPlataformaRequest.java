@@ -12,5 +12,8 @@ public record AdicionarPlataformaRequest(
 
         @NotNull(message = "A taxa percentual é obrigatória")
         @DecimalMin(value = "0.0", message = "A taxa não pode ser negativa")
-        BigDecimal taxaPercentual
+        BigDecimal taxaPercentual,
+
+        // Opcional: quando ausente, assume canal de entrega (true).
+        Boolean entrega
 ) {}
