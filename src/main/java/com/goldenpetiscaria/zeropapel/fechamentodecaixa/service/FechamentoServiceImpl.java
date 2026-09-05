@@ -97,6 +97,12 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     @Override
+    public FechamentoResponseDTO calcularPrevia(LocalDateTime de, LocalDateTime ate) {
+        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(de, ate);
+        return calcularFechamento(de, ate, pedidos);
+    }
+
+    @Override
     public List<FechamentoCaixaListagemDTO> listarFechamentos() {
         List<FechamentoCaixa> fechamentos = fechamentoRepository.findAll();
         List<FechamentoCaixaListagemDTO> resultado = new ArrayList<>();
