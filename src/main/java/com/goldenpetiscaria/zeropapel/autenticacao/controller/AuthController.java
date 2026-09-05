@@ -51,7 +51,7 @@ public class AuthController {
         String token = jwtService.gerarToken(usuario);
         String refreshToken = refreshTokenService.gerar(usuario);
 
-        return ResponseEntity.ok(new LoginResponse(token, refreshToken));
+        return ResponseEntity.ok(new LoginResponse(token, refreshToken, usuario.getCargo().name()));
     }
 
     @PostMapping("/refresh")
@@ -60,7 +60,7 @@ public class AuthController {
         String novoAccessToken = jwtService.gerarToken(usuario);
         String novoRefreshToken = refreshTokenService.gerar(usuario);
 
-        return ResponseEntity.ok(new LoginResponse(novoAccessToken, novoRefreshToken));
+        return ResponseEntity.ok(new LoginResponse(novoAccessToken, novoRefreshToken, usuario.getCargo().name()));
     }
 
     @PostMapping("/logout")
