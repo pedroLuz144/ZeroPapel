@@ -1,0 +1,212 @@
+/*
+ * Primitivos visuais reutilizados entre as telas (painéis, tabelas, abas, badges,
+ * métricas). Globais e sem escopo — as telas só aplicam as classes.
+ */
+
+.painel {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio-lg);
+  padding: 20px 22px;
+}
+
+.painel__titulo {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  margin-bottom: 16px;
+}
+
+.painel__cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.painel__cabecalho .painel__titulo {
+  margin-bottom: 0;
+}
+
+.barra-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.contagem {
+  font-size: 13px;
+  color: var(--cor-texto-suave);
+}
+
+/* ── Tabela ──────────────────────────────────────────────── */
+.tabela-scroll {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--cor-borda);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cor-borda);
+  color: var(--cor-texto);
+}
+
+.tabela tbody tr:hover td {
+  background: var(--cor-superficie-2);
+}
+
+.tabela__vazio {
+  text-align: center;
+  color: var(--cor-texto-fraco);
+  padding: 22px 0;
+}
+
+.tabela tfoot td,
+.tabela__total td {
+  background: var(--cor-superficie-3);
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.tabela tfoot tr:hover td {
+  background: var(--cor-superficie-3);
+}
+
+/* ── Ações inline ────────────────────────────────────────── */
+.link-acao {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--cor-acento);
+  text-decoration: underline;
+}
+
+.link-acao + .link-acao {
+  margin-left: 12px;
+}
+
+.link-acao--perigo {
+  color: var(--cor-erro);
+}
+
+/* ── Badge ───────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--cor-borda-forte);
+  font-size: 11px;
+  color: var(--cor-texto-suave);
+}
+
+.badge--on {
+  border-color: var(--cor-acento-fraco);
+  background: var(--cor-acento-superficie);
+  color: var(--cor-acento);
+}
+
+.badge--off {
+  color: var(--cor-texto-fraco);
+}
+
+/* ── Abas ────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--cor-borda);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 9px 16px;
+  margin-bottom: -1px;
+  font-size: 13px;
+  color: var(--cor-texto-suave);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--cor-texto);
+}
+
+.tab--ativo {
+  color: var(--cor-texto);
+  border-bottom-color: var(--cor-acento);
+  font-weight: 600;
+}
+
+/* ── Métricas ────────────────────────────────────────────── */
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.metrica {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 16px 18px;
+}
+
+.metrica__rotulo {
+  font-size: 12px;
+  color: var(--cor-texto-suave);
+}
+
+.metrica__valor {
+  font-size: 23px;
+  font-weight: 700;
+  margin-top: 8px;
+  letter-spacing: -0.01em;
+}
+
+/* ── Seção com título + tabela ───────────────────────────── */
+.secao-tabela {
+  margin-bottom: 26px;
+}
+
+.secao-tabela > h3 {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  margin-bottom: 10px;
+}
+
+/* ── Estado de carregamento / vazio de tela ──────────────── */
+.estado-tela {
+  color: var(--cor-texto-suave);
+  font-size: 13px;
+  padding: 8px 0;
+}

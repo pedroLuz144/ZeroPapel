@@ -1,0 +1,57 @@
+/*
+ * Identidade visual — claro e limpo, dourado só nos detalhes.
+ * Superfícies brancas sobre fundo levemente quente; texto quase preto;
+ * o dourado aparece em foco, item de menu ativo, links de ação, marca e
+ * status "ativo". Ação primária é quase preta (sóbria), não dourada.
+ */
+:root {
+  color-scheme: light;
+
+  /* Superfícies */
+  --cor-fundo: #f4f3f1;
+  --cor-superficie: #ffffff;
+  --cor-superficie-2: #f6f5f2;
+  --cor-superficie-3: #eeece7;
+  --cor-borda: #e4e1db;
+  --cor-borda-forte: #d3cec4;
+
+  /* Texto */
+  --cor-texto: #1f1d1a;
+  --cor-texto-suave: #5c574f;
+  --cor-texto-fraco: #928b7e;
+
+  /* Ação primária (sóbria) */
+  --cor-primario: #1e1b17;
+  --cor-primario-hover: #37322b;
+  --cor-primario-contraste: #faf9f6;
+
+  /* Acento (dourado) — interativo, foco, marca, status ativo */
+  --cor-acento: #a4791a;
+  --cor-acento-hover: #855f12;
+  --cor-acento-contraste: #1f1d1a;
+  --cor-acento-fraco: #d9c48d;
+  --cor-acento-superficie: #faf4e6;
+
+  /* Feedback */
+  --cor-erro: #b23b32;
+  --cor-erro-superficie: #fbeceb;
+  --cor-erro-borda: #eec9c5;
+  --cor-ok: #2f7d4f;
+  --cor-ok-superficie: #eaf5ee;
+  --cor-ok-borda: #c2e2ce;
+
+  /* Raio */
+  --raio-sm: 6px;
+  --raio: 9px;
+  --raio-lg: 12px;
+
+  /* Sombra */
+  --sombra-1: 0 1px 2px rgba(20, 18, 14, 0.06);
+  --sombra-2: 0 12px 32px rgba(20, 18, 14, 0.14);
+
+  /* Tipografia */
+  --fonte: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  --transicao: 140ms ease;
+  --largura-sidebar: 208px;
+}

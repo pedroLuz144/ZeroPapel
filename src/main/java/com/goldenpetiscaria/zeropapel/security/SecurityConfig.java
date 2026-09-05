@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -46,7 +47,12 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/login.html", "/dashboard.html", "/").permitAll()
+                        .requestMatchers("/auth/**").permitAll()
+                        // SPA (Vite): shell, rotas de tela e assets estáticos são públicos;
+                        // o acesso aos dados continua protegido nos endpoints de API.
+                        .requestMatchers(HttpMethod.GET,
+                                "/", "/index.html", "/login", "/app/**",
+                                "/assets/**", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
