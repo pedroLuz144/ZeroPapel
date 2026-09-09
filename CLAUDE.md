@@ -100,7 +100,7 @@ Tipos usados neste repositório:
 | `fix` | Correção de bug em comportamento existente |
 | `refactor` | Reorganização sem mudança de comportamento (ex.: package-by-layer → package-by-feature) |
 | `test` | Adição ou ajuste de testes, sem mexer em código de produção |
-| `docs` | Documentação (README, CLAUDE.md, `plano-integracao-ifood.md`) |
+| `docs` | Documentação (README, CLAUDE.md, `docs/plano-integracao-ifood.md`) |
 | `chore` | Build, dependências, `.gitignore`, configuração de tooling |
 | `wip` | Ponto de salvamento intermediário numa branch de feature (não usar na `main`) |
 
@@ -119,6 +119,8 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 - **TypeScript**: Vitest 5 + `@vue/test-utils` 2 + jsdom. Config no bloco `test` de `frontend/vite.config.ts`; arquivos `*.spec.ts` ao lado do código testado.
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
+
+**Estado atual:** a cobertura ainda não existe. `src/test/` tem apenas `CdpApplicationTests` (smoke test de subida do contexto) e o frontend tem apenas `frontend/src/utils/formato.spec.ts`. Nenhum service tem teste. Não afirme, em documento nem em relatório, que as regras de negócio estão cobertas.
 
 ## Environment Setup
 
@@ -181,7 +183,7 @@ common/
 
 security/             → JwtFilter, JwtService, SecurityConfig, UsuarioDetailsServiceImpl
 
-integracao/           → placeholder para integrações futuras (iFood, AnotaAi)
+integracoes/          → integrações externas (iFood em andamento, AnotaAi planejado)
   ifood/
   anotaai/
 ```
@@ -272,6 +274,52 @@ Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `
 
 All error responses return JSON `{ "error": "<message>" }`.
 
+## Documentação do estágio (`documentosDoEstagio/`)
+
+Pasta **intencionalmente untracked**, mas é onde vive metade do trabalho. Não é lixo: contém a
+entrega acadêmica do estágio supervisionado. Dois scripts sustentam tudo, ambos só com
+biblioteca padrão do Python (`zipfile`, `struct`, `re`, `xml.etree`). **Não instalar
+python-docx, Pillow nem nada.**
+
+Só fica na raiz da pasta o que está em uso hoje: os dois geradores ativos, o `.docx` de
+entrada e o de saída. O resto está separado por papel.
+
+| Caminho | Papel |
+|---|---|
+| `gerar_diagramas_drawio.py` | Gera os 15 `.drawio` em `diagramas-drawio/`. Ver `/diagrama` |
+| `atualizar_relatorio_v2.py` | Monta o `.docx` final a partir do `- CORRIGIDO.docx`. Ver `/relatorio` |
+| `Relatório ... - CORRIGIDO.docx` | Entrada do `atualizar_relatorio_v2.py` |
+| `Relatório ... - 3o bimestre.docx` | Saída atual, o documento da entrega |
+| `diagramas-drawio/LEIA-ME.md` | Mapa figura para arquivo e o que cada correção resolveu |
+| `telas/` | As 10 capturas reais da SPA, figuras 16 a 25 (lidas pelo atalho `tela()`) |
+| `suc/` | Especificações de Caso de Uso: os `gerar_suc_*.py` e os `.docx` que eles geram. Os geradores usam `sucGerenciarCardapio.docx` como template, e os três ficam juntos aqui |
+| `modelos/` | Material de referência que não é gerado: exemplo de relatório, modelo da banca, enunciado |
+| `historico/` | Rodadas anteriores, mantidas só como registro: `corrigir_relatorio_estagio.py`, `gerar_plano_estagio.py`, os `inspecionar_docx*.py` e os `.docx` já superados. Nada aqui é para rodar de novo |
+
+Os PNGs dos diagramas **não** ficam nesta pasta: `atualizar_relatorio_v2.py` os lê de
+`C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas` (constante `IMAGENS`), que é para onde
+o passo manual de exportar do draw.io aponta.
+
+Fluxo, e ele tem um passo manual no meio:
+
+```
+editar gerar_diagramas_drawio.py
+  -> python gerar_diagramas_drawio.py
+  -> validar o XML de cada .drawio com ET.parse
+  -> [MANUAL] usuário exporta PNG do draw.io para
+              C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas
+  -> ler o PNG com o Read e conferir o desenho
+  -> python atualizar_relatorio_v2.py
+```
+
+O documento tem 26 figuras: 1 a 15 no capítulo 2 (diagramas), 16 a 25 no capítulo 3 (telas,
+capturas reais da SPA em `documentosDoEstagio/telas/`) e 26 no capítulo 4 (workflow BPMN). O capítulo 2 fica em três seções, com 2.3 a 2.6 em paisagem
+para os diagramas largos caberem legíveis.
+
+Os diagramas precisam refletir o código de hoje. Antes de mexer em qualquer um, leia as classes
+envolvidas: já aconteceu de o diagrama de estado do Pedido mostrar um modelo anterior ao
+`StatusPedido` e de o diagrama de classe listar entidade que não existe mais.
+
 ## Comandos do Claude Code
 
 Em `.claude/commands/`:
@@ -281,6 +329,14 @@ Em `.claude/commands/`:
 | `/gen-feature <nome>` | Gera a fatia vertical completa da feature no Java (entity, repository, service + impl, controller, DTOs) e o espelho no TypeScript (tipos em `api/types.ts` + client em `api/index.ts`) |
 | `/revisar-arquitetura` | Revisa o diff contra as regras de isolamento package-by-feature e as regras de Spring Security/JWT deste arquivo |
 | `/gen-tests <alvo>` | Gera testes unitários — JUnit Jupiter + Mockito no Java, Vitest no TypeScript |
+| `/diagrama <alvo>` | Cria ou ajusta os diagramas do estágio, sempre pelo gerador `documentosDoEstagio/gerar_diagramas_drawio.py` |
+| `/relatorio <o quê>` | Atualiza o Relatório de Estágio (.docx) pelo `documentosDoEstagio/atualizar_relatorio_v2.py` |
 
 `/revisar-arquitetura` é complementar ao `/code-review` embutido: aquele caça bugs de
 correção, este verifica conformidade arquitetural.
+
+Em `.claude/agents/`:
+
+| Subagente | O que faz |
+|---|---|
+| `revisor-de-entrega` | Confere o .docx contra as figuras e contra o código e devolve só as divergências. Lê artefatos pesados (docx, PNG) fora do contexto principal. Rodar antes de entregar o relatório |
