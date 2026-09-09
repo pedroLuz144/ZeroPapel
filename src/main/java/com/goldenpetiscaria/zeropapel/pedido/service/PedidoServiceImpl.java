@@ -9,6 +9,7 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.response.ItemPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
@@ -55,6 +56,7 @@ public class PedidoServiceImpl implements PedidoService {
         pedido.setFormaDePagamento(formaDePagamento);
         pedido.setNomeCliente(request.nomeCliente());
         pedido.setHorarioPedido(LocalDateTime.now());
+        pedido.setStatus(StatusPedido.EM_ABERTO);
 
         List<ItemPedido> itensPedido = montarItensPedido(request.itens(), pedido);
         pedido.setItens(itensPedido);
@@ -114,6 +116,15 @@ public class PedidoServiceImpl implements PedidoService {
 
     @Override
     @Transactional
+    public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status) {
+        Pedido pedido = pedidoRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado para o ID informado"));
+        pedido.setStatus(status);
+        return toDTO(pedidoRepository.save(pedido));
+    }
+
+    @Override
+    @Transactional
     public void excluirPedido(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado para o ID informado"));
@@ -165,6 +176,7 @@ public class PedidoServiceImpl implements PedidoService {
                 pedido.getHorarioPedido(),
                 pedido.getFormaDePagamento().getId(),
                 pedido.getFormaDePagamento().getNome(),
+                pedido.getStatus(),
                 pedido.getValor(),
                 itensDTO
         );

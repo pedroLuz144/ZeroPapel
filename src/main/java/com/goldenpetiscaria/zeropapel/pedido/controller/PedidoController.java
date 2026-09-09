@@ -4,6 +4,7 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.service.PedidoService;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarStatusPedidoRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -40,6 +41,11 @@ public class PedidoController {
     @PatchMapping("/{id}")
     public PedidoResponseDTO atualizarPedido(@PathVariable Long id, @RequestBody @Valid AtualizarPedidoRequest request) {
         return service.atualizarPedido(id, request);
+    }
+
+    @PatchMapping("/{id}/status")
+    public PedidoResponseDTO atualizarStatus(@PathVariable Long id, @RequestBody @Valid AtualizarStatusPedidoRequest request) {
+        return service.atualizarStatus(id, request.status());
     }
 
     @DeleteMapping("/{id}")
