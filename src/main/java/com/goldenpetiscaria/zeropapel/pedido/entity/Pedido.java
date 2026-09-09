@@ -1,11 +1,15 @@
 package com.goldenpetiscaria.zeropapel.pedido.entity;
 
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -30,6 +34,15 @@ public class Pedido {
 
     @Column(name = "horario_pedido", nullable = false)
     private LocalDateTime horarioPedido;
+
+    // @JdbcTypeCode força VARCHAR (evita o tipo enum() nativo do MariaDB, que o
+    // ddl-auto=update nunca sincroniza ao adicionar valores ao enum).
+    // @ColumnDefault preenche os pedidos já existentes na migração como CONCLUIDO.
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 20)
+    @ColumnDefault("'CONCLUIDO'")
+    private StatusPedido status = StatusPedido.EM_ABERTO;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemPedido> itens;
