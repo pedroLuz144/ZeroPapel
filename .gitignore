@@ -33,3 +33,22 @@ build/
 ### VS Code ###
 .vscode/
 slides/
+
+### Frontend (SPA — Vite + Vue + TS, pasta frontend/) ###
+/frontend/node_modules/
+# Saída do `npm run build` (rodado em frontend/). Gerada, não versionada.
+# Para servir a SPA pelo Spring: rode o build antes de empacotar o .jar.
+/src/main/resources/static/
+
+### Documentação do estágio (entrega acadêmica, intencionalmente fora do versionamento) ###
+/documentosDoEstagio/
+
+### Python (scripts/, geradores do estágio) ###
+__pycache__/
+*.pyc
+
+### Capturas de tela do relatório (material acadêmico, fora do versionamento) ###
+/Telas/
+
+### Claude Code: comandos e agentes são versionados; preferências locais não ###
+.claude/settings.local.json
