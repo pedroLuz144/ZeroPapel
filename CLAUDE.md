@@ -122,12 +122,12 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (06/10/2026):** 58 testes no Java, todos passando (`./mvnw test`).
+**Estado atual (06/10/2026):** 66 testes no Java, todos passando (`./mvnw test`).
 
 | Classe de teste | Cobre |
 |---|---|
-| `FechamentoServiceImplTest` (19) | cálculo de taxa, taxa congelada, ticket médio, ranking, agrupamentos, persistência |
-| `PedidoServiceImplTest` (10) | congelamento das taxas no registro e na troca de plataforma, preço travado, status |
+| `FechamentoServiceImplTest` (22) | taxa, taxa congelada, ticket médio, ranking, agrupamentos, marcação do período |
+| `PedidoServiceImplTest` (15) | congelamento das taxas, imutabilidade do pedido fechado, preço travado, status |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
@@ -269,6 +269,7 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **Plataforma** — origin platform (e.g. Balcão, iFood) with configurable `taxaPercentual` and `entrega` flag (true = delivery channel like iFood/AnotaAi, has an `EM_ROTA` step; false = counter, used by the PDV); table `plataforma`
 - **FormaDePagamento** — payment method with configurable `taxaPercentual`; table `forma_de_pagamento`
 - **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Plataforma` and `FormaDePagamento`; table `pedidos`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
+- **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
 - **ItemPedido** — join entity between `Pedido` and `Item`; stores `quantidade` and `precoUnitario` (price locked at order time); table `itens_pedido`
 
 ### Regra de faturamento
@@ -281,6 +282,21 @@ Todo cálculo de dinheiro é `BigDecimal` do início ao fim, sem passar por `dou
 `valor.multiply(percentual).divide(CEM, 2, HALF_UP)`; a taxa é arredondada **por pedido** e só
 depois somada, porque é assim que a plataforma e a adquirente cobram — não troque para somar e
 arredondar no fim, isso quebra a reconciliação com o extrato.
+
+### Imutabilidade do histórico fechado
+
+`POST /fechamento` marca `Pedido.fechado = true` em todos os pedidos do período. A partir daí o
+pedido é **imutável**: `atualizarPedido`, `atualizarStatus` e `excluirPedido` recusam com
+`ConflitoException` (409). Sem isso, apagar ou editar um pedido de uma noite já fechada faz o
+`buscarFechamentoPorId` devolver um resumo congelado que não fecha com o breakdown recalculado.
+
+A flag existe em vez de uma consulta a `fechamentos_caixa` de propósito: `pedido` consultando o
+pacote `fechamentodecaixa`, que já consulta `pedido`, seria dependência circular entre features
+— proibida mais acima neste arquivo. A marcação é feita por `fechamentodecaixa`, que já tem
+acesso ao `PedidoRepository`.
+
+Cancelar um pedido é `PATCH /pedidos/{id}/status` com `CANCELADO`, antes do fechamento.
+`DELETE /pedidos/{id}` continua sendo exclusão física e só funciona em pedido ainda não fechado.
 
 As taxas são **congeladas no pedido** no momento da venda, em
 `Pedido.taxaPlataformaPercentual` e `Pedido.taxaPagamentoPercentual`, exatamente como
