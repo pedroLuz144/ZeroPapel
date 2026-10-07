@@ -63,7 +63,13 @@ export const formasPagamentoApi = {
 }
 
 export const pedidosApi = {
-  listar: () => http.get<PedidoResponse[]>('/pedidos'),
+  listar: (de?: string, ate?: string) => {
+    const busca = new URLSearchParams()
+    if (de) busca.set('de', de)
+    if (ate) busca.set('ate', ate)
+    const sufixo = busca.toString() ? `?${busca}` : ''
+    return http.get<PedidoResponse[]>(`/pedidos${sufixo}`)
+  },
   buscar: (id: number) => http.get<PedidoResponse>(`/pedidos/${id}`),
   registrar: (body: AdicionarPedidoRequest) => http.post<PedidoResponse>('/pedidos', body),
   atualizar: (id: number, body: AtualizarPedidoRequest) => http.patch<PedidoResponse>(`/pedidos/${id}`, body),
