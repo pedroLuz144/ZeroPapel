@@ -12,8 +12,8 @@ post {
 
 body:json {
   {
-    "usuario": "eliane",
-    "senha": "1234"
+    "usuario": "{{usuario}}",
+    "senha": "{{senha}}"
   }
 }
 
@@ -22,6 +22,6 @@ vars:pre-request {
 }
 
 script:post-response {
-  bru.setEnvVar("accessToken", res.body.accessToken);
+  bru.setEnvVar("accessToken", res.body.token);
   bru.setEnvVar("refreshToken", res.body.refreshToken);
 }

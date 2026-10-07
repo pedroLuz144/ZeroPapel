@@ -17,6 +17,8 @@ aba Integrações em Configurações.
 As classes de integração devem depender de `PedidoService` — elas traduzem o formato externo para `AdicionarPedidoRequest` e delegam para o service, sem duplicar lógica de negócio.
 
 ## Rules
+- Não escrever comentário dentro do código. Se a informação é necessária e não cabe num nome de
+  método ou variável, ela vai para este arquivo, para `docs/` ou para a mensagem de commit
 - Never expose @Entity directly in controller responses — always use a ResponseDTO
 - Never put business logic in controllers — delegate to service
 - Services must always use the interface, never the impl class directly
@@ -120,7 +122,20 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual:** a cobertura ainda não existe. `src/test/` tem apenas `CdpApplicationTests` (smoke test de subida do contexto) e o frontend tem apenas `frontend/src/utils/formato.spec.ts`. Nenhum service tem teste. Não afirme, em documento nem em relatório, que as regras de negócio estão cobertas.
+**Estado atual (06/10/2026):** 66 testes no Java, todos passando (`./mvnw test`).
+
+| Classe de teste | Cobre |
+|---|---|
+| `FechamentoServiceImplTest` (22) | taxa, taxa congelada, ticket médio, ranking, agrupamentos, marcação do período |
+| `PedidoServiceImplTest` (15) | congelamento das taxas, imutabilidade do pedido fechado, preço travado, status |
+| `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
+| `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
+| `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
+| `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
+
+Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `PlataformaServiceImpl`,
+`FormaDePagamentoServiceImpl`, e os controllers. O frontend tem só
+`frontend/src/utils/formato.spec.ts`. Não afirme cobertura além do que a tabela acima lista.
 
 ## Environment Setup
 
@@ -135,7 +150,12 @@ JWT_EXPIRATION_MS=86400000
 CORS_ALLOWED_ORIGIN=http://localhost:8080
 ```
 
-Requires a running **MariaDB** instance. Hibernate manages the schema automatically (`ddl-auto=update`).
+Requires a running **MariaDB** instance.
+
+O schema é versionado com **Flyway** (`src/main/resources/db/migration/`), não mais derivado
+pelo Hibernate. `ddl-auto=validate`: a aplicação não sobe se entidade e schema divergirem.
+Toda mudança de schema é uma migration nova — ver `/migracao`. Nunca editar migration já
+aplicada.
 
 ## Architecture
 
@@ -248,8 +268,42 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **RefreshToken** — linked to `Usuario`, has expiration; table `refresh_tokens`
 - **Plataforma** — origin platform (e.g. Balcão, iFood) with configurable `taxaPercentual` and `entrega` flag (true = delivery channel like iFood/AnotaAi, has an `EM_ROTA` step; false = counter, used by the PDV); table `plataforma`
 - **FormaDePagamento** — payment method with configurable `taxaPercentual`; table `forma_de_pagamento`
-- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), FK to `Plataforma` and `FormaDePagamento`; table `pedidos`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
+- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Plataforma` and `FormaDePagamento`; table `pedidos`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
+- **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
 - **ItemPedido** — join entity between `Pedido` and `Item`; stores `quantidade` and `precoUnitario` (price locked at order time); table `itens_pedido`
+
+### Regra de faturamento
+
+`PedidoRepository.findFaturaveisDoPeriodoComItens` é a **única** porta de entrada do consolidado
+(fechamento e dashboard) e exclui `CANCELADO`. Pedido cancelado não entra em faturamento, taxa,
+ticket médio nem ranking. Se precisar de outro recorte, crie outra query — não afrouxe essa.
+
+Todo cálculo de dinheiro é `BigDecimal` do início ao fim, sem passar por `double`. Taxa é
+`valor.multiply(percentual).divide(CEM, 2, HALF_UP)`; a taxa é arredondada **por pedido** e só
+depois somada, porque é assim que a plataforma e a adquirente cobram — não troque para somar e
+arredondar no fim, isso quebra a reconciliação com o extrato.
+
+### Imutabilidade do histórico fechado
+
+`POST /fechamento` marca `Pedido.fechado = true` em todos os pedidos do período. A partir daí o
+pedido é **imutável**: `atualizarPedido`, `atualizarStatus` e `excluirPedido` recusam com
+`ConflitoException` (409). Sem isso, apagar ou editar um pedido de uma noite já fechada faz o
+`buscarFechamentoPorId` devolver um resumo congelado que não fecha com o breakdown recalculado.
+
+A flag existe em vez de uma consulta a `fechamentos_caixa` de propósito: `pedido` consultando o
+pacote `fechamentodecaixa`, que já consulta `pedido`, seria dependência circular entre features
+— proibida mais acima neste arquivo. A marcação é feita por `fechamentodecaixa`, que já tem
+acesso ao `PedidoRepository`.
+
+Cancelar um pedido é `PATCH /pedidos/{id}/status` com `CANCELADO`, antes do fechamento.
+`DELETE /pedidos/{id}` continua sendo exclusão física e só funciona em pedido ainda não fechado.
+
+As taxas são **congeladas no pedido** no momento da venda, em
+`Pedido.taxaPlataformaPercentual` e `Pedido.taxaPagamentoPercentual`, exatamente como
+`ItemPedido.precoUnitario`. `FechamentoServiceImpl` lê essas colunas e **nunca** navega para
+`pedido.getPlataforma().getTaxaPercentual()` — fazer isso faz um reajuste de taxa reescrever
+todo o histórico já fechado. `Plataforma.taxaPercentual` e `FormaDePagamento.taxaPercentual`
+são editáveis na tela de Configurações e valem só para vendas novas.
 
 ### Security
 
@@ -331,6 +385,8 @@ Em `.claude/commands/`:
 | `/gen-tests <alvo>` | Gera testes unitários — JUnit Jupiter + Mockito no Java, Vitest no TypeScript |
 | `/diagrama <alvo>` | Cria ou ajusta os diagramas do estágio, sempre pelo gerador `documentosDoEstagio/gerar_diagramas_drawio.py` |
 | `/relatorio <o quê>` | Atualiza o Relatório de Estágio (.docx) pelo `documentosDoEstagio/atualizar_relatorio_v2.py` |
+| `/migracao <o quê>` | Cria migration Flyway com o DDL correto para MariaDB e o ajuste de entidade correspondente |
+| `/auditar [área]` | Varredura do projeto inteiro — despacha os auditores em paralelo e consolida por severidade × esforço |
 
 `/revisar-arquitetura` é complementar ao `/code-review` embutido: aquele caça bugs de
 correção, este verifica conformidade arquitetural.
@@ -340,3 +396,5 @@ Em `.claude/agents/`:
 | Subagente | O que faz |
 |---|---|
 | `revisor-de-entrega` | Confere o .docx contra as figuras e contra o código e devolve só as divergências. Lê artefatos pesados (docx, PNG) fora do contexto principal. Rodar antes de entregar o relatório |
+| `auditor-seguranca` | Caça vulnerabilidades — autorização, JWT, refresh token, exposição de dados, configuração. Rodar antes de expor o sistema e ao mexer em `security/` ou `autenticacao/` |
+| `auditor-persistencia` | Caça N+1, paginação ausente, índice faltando, transação mal delimitada, algoritmo quadrático e aritmética de dinheiro em ponto flutuante |

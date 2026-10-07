@@ -16,5 +16,6 @@ public record PedidoResponseDTO(
         String formaDePagamentoNome,
         StatusPedido status,
         BigDecimal valor,
+        boolean fechado,
         List<ItemPedidoResponseDTO> itens
 ) {}
