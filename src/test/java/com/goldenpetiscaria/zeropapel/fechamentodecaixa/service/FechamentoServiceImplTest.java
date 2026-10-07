@@ -115,6 +115,36 @@ class FechamentoServiceImplTest {
         }
 
         @Test
+        @DisplayName("mudar a taxa da plataforma depois da venda nao mexe no fechamento")
+        void calcularPrevia_usaATaxaCongelada_quandoATaxaDaPlataformaMudaDepoisDaVenda() {
+            Plataforma ifood = plataforma("iFood", "10.00");
+            FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
+            Pedido pedido = pedido("200.00", ifood, dinheiro, 20);
+            ifood.setTaxaPercentual(new BigDecimal("14.00"));
+            darPedidos(pedido);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("20.00");
+            assertThat(previa.porPlataforma().getFirst().taxaPlataforma()).isEqualByComparingTo("20.00");
+        }
+
+        @Test
+        @DisplayName("mudar a taxa do cartao depois da venda nao mexe no fechamento")
+        void calcularPrevia_usaATaxaCongelada_quandoATaxaDoPagamentoMudaDepoisDaVenda() {
+            Plataforma balcao = plataforma("Balcao", "0.00");
+            FormaDePagamento credito = formaDePagamento("Credito", "3.00");
+            Pedido pedido = pedido("100.00", balcao, credito, 20);
+            credito.setTaxaPercentual(new BigDecimal("4.50"));
+            darPedidos(pedido);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("3.00");
+            assertThat(previa.porFormaDePagamento().getFirst().taxa()).isEqualByComparingTo("3.00");
+        }
+
+        @Test
         void calcularPrevia_descontaAsDuasTaxasDoFaturamentoLiquido() {
             Plataforma ifood = plataforma("iFood", "12.00");
             FormaDePagamento credito = formaDePagamento("Credito", "3.00");
@@ -349,7 +379,9 @@ class FechamentoServiceImplTest {
         Pedido pedido = new Pedido();
         pedido.setValor(new BigDecimal(valor));
         pedido.setPlataforma(plataforma);
+        pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
         pedido.setFormaDePagamento(formaDePagamento);
+        pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         pedido.setHorarioPedido(LocalDateTime.of(2026, 10, 6, hora, 30));
         pedido.setItens(new ArrayList<>());
         return pedido;
