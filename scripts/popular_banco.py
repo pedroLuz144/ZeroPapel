@@ -2,28 +2,67 @@
 Script para popular o banco de dados ZeroPapel com dados de teste.
 
 Instale as dependências antes de rodar:
-    pip install pymysql bcrypt
+    pip install -r requirements.txt
 
 Como rodar:
     python popular_banco.py
+
+As credenciais do banco vêm do .env da raiz do projeto (USER_BD, SENHA_BD, URL_BD).
+A senha dos usuários de teste vem de SEED_SENHA; sem ela, uma senha aleatória é
+gerada e impressa no fim da execução. Nenhuma senha fica versionada neste arquivo.
 """
 
-import pymysql
-import bcrypt
+import os
+import re
+import secrets
+import sys
 from datetime import datetime
+from pathlib import Path
 
-# ---------------------------------------------------------------------------
-# Configuração do banco — mesmos valores do seu .env
-# ---------------------------------------------------------------------------
+import bcrypt
+import pymysql
+
+
+def carregar_env():
+    caminho = Path(__file__).resolve().parent.parent / ".env"
+    if not caminho.is_file():
+        return
+    for linha in caminho.read_text(encoding="utf-8").splitlines():
+        linha = linha.strip()
+        if not linha or linha.startswith("#") or "=" not in linha:
+            continue
+        chave, valor = linha.split("=", 1)
+        os.environ.setdefault(chave.strip(), valor.strip())
+
+
+def exigir(chave):
+    valor = os.environ.get(chave)
+    if not valor:
+        sys.exit(f"Variável {chave} não definida. Configure o .env da raiz do projeto.")
+    return valor
+
+
+def banco_do_jdbc(url):
+    achado = re.search(r"//([^:/]+):(\d+)/([^?]+)", url)
+    if not achado:
+        sys.exit(f"URL_BD em formato inesperado: {url}")
+    return achado.group(1), int(achado.group(2)), achado.group(3)
+
+
+carregar_env()
+
+HOST, PORTA, NOME_DO_BANCO = banco_do_jdbc(exigir("URL_BD"))
 
 BANCO = {
-    "host":     "localhost",
-    "port":     3306,
-    "db":       "zeropapel",
-    "user":     "root",
-    "password": "root",
+    "host":     HOST,
+    "port":     PORTA,
+    "db":       NOME_DO_BANCO,
+    "user":     exigir("USER_BD"),
+    "password": exigir("SENHA_BD"),
     "charset":  "utf8mb4",
 }
+
+SENHA_DOS_USUARIOS = os.environ.get("SEED_SENHA") or secrets.token_urlsafe(12)
 
 # ---------------------------------------------------------------------------
 # Dados de teste
@@ -60,10 +99,10 @@ FORMAS_DE_PAGAMENTO = [
     ("Debito",  1.50),
 ]
 
-# (nome_completo, usuario, senha_em_texto, cargo)
+# (nome_completo, usuario, cargo)
 USUARIOS = [
-    ("Eliane Gerente", "eliane", "1234", "GERENTE"),
-    ("Wellington Operadora",  "wellington",    "1234", "OPERADOR"),
+    ("Eliane Gerente", "eliane", "GERENTE"),
+    ("Wellington Operadora", "wellington", "OPERADOR"),
 ]
 
 # Pedidos da noite de 13/05/2026 — use este intervalo no POST /fechamento:
@@ -172,8 +211,8 @@ def popular_banco():
 
         # --- Usuarios ---
         print("Inserindo usuarios (gerando hashes BCrypt, pode demorar alguns segundos)...")
-        for nome_completo, usuario, senha_texto, cargo in USUARIOS:
-            senha_hash = gerar_hash_senha(senha_texto)
+        for nome_completo, usuario, cargo in USUARIOS:
+            senha_hash = gerar_hash_senha(SENHA_DOS_USUARIOS)
             cursor.execute(
                 "INSERT INTO usuarios (nome, usuario, senha, cargo, ativo) VALUES (%s, %s, %s, %s, %s)",
                 (nome_completo, usuario, senha_hash, cargo, True)
@@ -208,8 +247,10 @@ def popular_banco():
         print("Banco populado com sucesso! 20 pedidos inseridos.")
         print("")
         print("Credenciais de acesso:")
-        print("  Gerente  -> usuario: carlos | senha: senha123")
-        print("  Operador -> usuario: ana    | senha: senha123")
+        for nome_completo, usuario, cargo in USUARIOS:
+            print(f"  {cargo:<9}-> usuario: {usuario}")
+        print(f"  senha (todos): {SENHA_DOS_USUARIOS}")
+        print("  Troque essas senhas antes de expor o sistema na internet.")
         print("")
         print("Para testar o fechamento, faca login com o gerente e depois:")
         print("  POST /fechamento")

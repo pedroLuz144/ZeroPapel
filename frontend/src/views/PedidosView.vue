@@ -130,7 +130,8 @@ function resumoItens(p: PedidoResponse): string {
 async function carregar(): Promise<void> {
   erro.value = ''
   try {
-    pedidos.value = await pedidosApi.listar()
+    const hoje = dataLocalISO()
+    pedidos.value = await pedidosApi.listar(`${hoje}T00:00:00`, `${hoje}T23:59:59`)
     ultimaAtualizacao.value = Date.now()
     agora.value = Date.now()
   } catch (e) {
