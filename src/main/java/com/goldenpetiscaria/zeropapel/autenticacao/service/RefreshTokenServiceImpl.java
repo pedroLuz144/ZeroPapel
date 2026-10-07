@@ -4,7 +4,7 @@ import com.goldenpetiscaria.zeropapel.autenticacao.entity.RefreshToken;
 import com.goldenpetiscaria.zeropapel.autenticacao.repository.RefreshTokenRepository;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.common.exception.TokenInvalidoException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -47,6 +47,12 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             log.warn("Refresh token expirado para usuário id={}", refreshToken.getUsuario().getId());
             refreshTokenRepository.delete(refreshToken);
             throw new TokenInvalidoException("Refresh token expirado, faça login novamente");
+        }
+
+        if (!refreshToken.getUsuario().isAtivo()) {
+            log.warn("Refresh token de usuário inativo id={}", refreshToken.getUsuario().getId());
+            refreshTokenRepository.delete(refreshToken);
+            throw new TokenInvalidoException("Usuário inativo, procure o gerente");
         }
 
         log.debug("Refresh token válido para usuário id={}", refreshToken.getUsuario().getId());
