@@ -53,7 +53,9 @@ public class PedidoServiceImpl implements PedidoService {
 
         Pedido pedido = new Pedido();
         pedido.setPlataforma(plataforma);
+        pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
         pedido.setFormaDePagamento(formaDePagamento);
+        pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         pedido.setNomeCliente(request.nomeCliente());
         pedido.setHorarioPedido(LocalDateTime.now());
         pedido.setStatus(StatusPedido.EM_ABERTO);
@@ -92,12 +94,14 @@ public class PedidoServiceImpl implements PedidoService {
             Plataforma plataforma = plataformaRepository.findById(request.plataformaId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
             pedido.setPlataforma(plataforma);
+            pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
         }
 
         if (request.formaDePagamentoId() != null) {
             FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
             pedido.setFormaDePagamento(formaDePagamento);
+            pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         }
 
         if (request.nomeCliente() != null) {

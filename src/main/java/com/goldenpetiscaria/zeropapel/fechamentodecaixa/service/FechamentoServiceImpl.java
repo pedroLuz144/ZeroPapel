@@ -338,11 +338,11 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     private BigDecimal calcularTaxaPlataforma(Pedido pedido) {
-        return calcularTaxa(pedido.getValor(), pedido.getPlataforma().getTaxaPercentual());
+        return calcularTaxa(pedido.getValor(), pedido.getTaxaPlataformaPercentual());
     }
 
     private BigDecimal calcularTaxaPagamento(Pedido pedido) {
-        return calcularTaxa(pedido.getValor(), pedido.getFormaDePagamento().getTaxaPercentual());
+        return calcularTaxa(pedido.getValor(), pedido.getTaxaPagamentoPercentual());
     }
 
     private BigDecimal calcularTaxa(BigDecimal valor, BigDecimal percentual) {
