@@ -3,9 +3,14 @@ URL_BD=jdbc:mariadb://localhost:3306/seu_banco
 USER_BD=seu_user
 SENHA_BD=sua_senha
 
-# JWT
+# JWT — gere com: openssl rand -base64 32
+# Minimo de 32 bytes depois de decodificar; abaixo disso a aplicacao nao sobe
 JWT_SECRET=secret_jwt_32bytes_Base64
 JWT_EXPIRATION_MS=86400000
 
 # CORS — origem do frontend (sem barra e sem path)
 CORS_ALLOWED_ORIGIN=http://localhost:8080
+
+# Opcional: senha dos usuarios criados por scripts/popular_banco.py
+# Sem esta variavel, o script gera uma senha aleatoria e imprime no fim
+SEED_SENHA=
