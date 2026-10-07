@@ -38,7 +38,7 @@ public class FechamentoServiceImpl implements FechamentoService {
             throw new ConflitoException("Já existe um fechamento para esse período.");
         }
 
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(request.de(), request.ate());
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(request.de(), request.ate());
         FechamentoResponseDTO calculado = calcularFechamento(request.de(), request.ate(), pedidos);
 
         FechamentoCaixa fechamento = new FechamentoCaixa();
@@ -81,7 +81,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         );
 
         // Breakdowns recalculados a partir dos pedidos do período
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(fechamento.getDe(), fechamento.getAte());
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(fechamento.getDe(), fechamento.getAte());
         FechamentoResponseDTO breakdowns = calcularFechamento(fechamento.getDe(), fechamento.getAte(), pedidos);
 
         return new FechamentoResponseDTO(
@@ -98,7 +98,7 @@ public class FechamentoServiceImpl implements FechamentoService {
 
     @Override
     public FechamentoResponseDTO calcularPrevia(LocalDateTime de, LocalDateTime ate) {
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(de, ate);
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(de, ate);
         return calcularFechamento(de, ate, pedidos);
     }
 
