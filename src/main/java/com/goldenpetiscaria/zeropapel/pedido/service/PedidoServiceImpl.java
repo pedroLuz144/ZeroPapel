@@ -12,6 +12,7 @@ import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
@@ -27,6 +28,8 @@ import java.util.List;
 
 @Service
 public class PedidoServiceImpl implements PedidoService {
+
+    private static final int LIMITE_DE_DIAS_DO_PAINEL = 31;
 
     private final PedidoRepository pedidoRepository;
     private final PlataformaRepository plataformaRepository;
@@ -69,8 +72,10 @@ public class PedidoServiceImpl implements PedidoService {
     }
 
     @Override
-    public List<PedidoResponseDTO> listarPedidos() {
-        List<Pedido> pedidos = pedidoRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<PedidoResponseDTO> listarPedidos(LocalDateTime de, LocalDateTime ate) {
+        Periodo periodo = Periodo.doDiaCorrenteSeAusente(de, ate, LIMITE_DE_DIAS_DO_PAINEL);
+        List<Pedido> pedidos = pedidoRepository.findDoPainelComItens(periodo.de(), periodo.ate());
         List<PedidoResponseDTO> resultado = new ArrayList<>();
         for (Pedido pedido : pedidos) {
             resultado.add(toDTO(pedido));
