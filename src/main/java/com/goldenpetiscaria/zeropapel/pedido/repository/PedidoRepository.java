@@ -19,6 +19,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
            "JOIN FETCH p.formaDePagamento " +
            "LEFT JOIN FETCH p.itens ip " +
            "LEFT JOIN FETCH ip.item " +
-           "WHERE p.horarioPedido BETWEEN :de AND :ate")
-    List<Pedido> findByPeriodoComItens(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate);
+           "WHERE p.horarioPedido BETWEEN :de AND :ate " +
+           "AND p.status <> com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido.CANCELADO")
+    List<Pedido> findFaturaveisDoPeriodoComItens(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate);
 }
