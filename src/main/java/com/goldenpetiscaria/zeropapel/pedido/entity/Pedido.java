@@ -58,5 +58,8 @@ public class Pedido {
     private BigDecimal taxaPagamentoPercentual;
 
     @Column(nullable = false)
+    private boolean fechado = false;
+
+    @Column(nullable = false)
     private BigDecimal valor;
 }
