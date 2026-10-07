@@ -22,6 +22,8 @@ import java.util.List;
 @Service
 public class FechamentoServiceImpl implements FechamentoService {
 
+    private static final BigDecimal CEM = new BigDecimal("100");
+
     private final FechamentoCaixaRepository fechamentoRepository;
     private final PedidoRepository pedidoRepository;
 
@@ -38,7 +40,7 @@ public class FechamentoServiceImpl implements FechamentoService {
             throw new ConflitoException("Já existe um fechamento para esse período.");
         }
 
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(request.de(), request.ate());
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(request.de(), request.ate());
         FechamentoResponseDTO calculado = calcularFechamento(request.de(), request.ate(), pedidos);
 
         FechamentoCaixa fechamento = new FechamentoCaixa();
@@ -53,6 +55,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         fechamento.setTicketMedio(calculado.resumo().ticketMedio());
 
         FechamentoCaixa salvo = fechamentoRepository.save(fechamento);
+        pedidoRepository.marcarComoFechados(request.de(), request.ate());
 
         return new FechamentoResponseDTO(
                 salvo.getId(),
@@ -81,7 +84,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         );
 
         // Breakdowns recalculados a partir dos pedidos do período
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(fechamento.getDe(), fechamento.getAte());
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(fechamento.getDe(), fechamento.getAte());
         FechamentoResponseDTO breakdowns = calcularFechamento(fechamento.getDe(), fechamento.getAte(), pedidos);
 
         return new FechamentoResponseDTO(
@@ -98,7 +101,7 @@ public class FechamentoServiceImpl implements FechamentoService {
 
     @Override
     public FechamentoResponseDTO calcularPrevia(LocalDateTime de, LocalDateTime ate) {
-        List<Pedido> pedidos = pedidoRepository.findByPeriodoComItens(de, ate);
+        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(de, ate);
         return calcularFechamento(de, ate, pedidos);
     }
 
@@ -154,8 +157,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         if (totalPedidos == 0) {
             ticketMedio = BigDecimal.ZERO;
         } else {
-            double ticketMedioDouble = faturamentoBruto.doubleValue() / totalPedidos;
-            ticketMedio = BigDecimal.valueOf(ticketMedioDouble).setScale(2, RoundingMode.HALF_UP);
+            ticketMedio = faturamentoBruto.divide(BigDecimal.valueOf(totalPedidos), 2, RoundingMode.HALF_UP);
         }
 
         return new ResumoFechamentoDTO(totalPedidos, faturamentoBruto, totalTaxas, faturamentoLiquido, ticketMedio);
@@ -263,8 +265,8 @@ public class FechamentoServiceImpl implements FechamentoService {
                     if (itemPedido.getItem().getId().equals(itemId)) {
                         nomeDoItem = itemPedido.getItem().getNome();
                         quantidadeTotal += itemPedido.getQuantidade();
-                        double subtotal = itemPedido.getPrecoUnitario().doubleValue() * itemPedido.getQuantidade();
-                        receitaTotal = receitaTotal.add(BigDecimal.valueOf(subtotal));
+                        receitaTotal = receitaTotal.add(
+                                itemPedido.getPrecoUnitario().multiply(BigDecimal.valueOf(itemPedido.getQuantidade())));
                     }
                 }
             }
@@ -337,16 +339,14 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     private BigDecimal calcularTaxaPlataforma(Pedido pedido) {
-        double valor = pedido.getValor().doubleValue();
-        double percentual = pedido.getPlataforma().getTaxaPercentual().doubleValue();
-        double taxa = valor * percentual / 100;
-        return BigDecimal.valueOf(taxa).setScale(2, RoundingMode.HALF_UP);
+        return calcularTaxa(pedido.getValor(), pedido.getTaxaPlataformaPercentual());
     }
 
     private BigDecimal calcularTaxaPagamento(Pedido pedido) {
-        double valor = pedido.getValor().doubleValue();
-        double percentual = pedido.getFormaDePagamento().getTaxaPercentual().doubleValue();
-        double taxa = valor * percentual / 100;
-        return BigDecimal.valueOf(taxa).setScale(2, RoundingMode.HALF_UP);
+        return calcularTaxa(pedido.getValor(), pedido.getTaxaPagamentoPercentual());
+    }
+
+    private BigDecimal calcularTaxa(BigDecimal valor, BigDecimal percentual) {
+        return valor.multiply(percentual).divide(CEM, 2, RoundingMode.HALF_UP);
     }
 }

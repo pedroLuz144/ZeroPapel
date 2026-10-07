@@ -5,9 +5,12 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AccountStatusException;
+import org.springframework.security.authentication.AccountStatusUserDetailsChecker;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsChecker;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
 import org.springframework.stereotype.Component;
@@ -21,6 +24,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+    private final UserDetailsChecker verificadorDeConta = new AccountStatusUserDetailsChecker();
 
     public JwtFilter(
             JwtService jwtService,
@@ -50,6 +54,7 @@ public class JwtFilter extends OncePerRequestFilter {
 
             if (usuario != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(usuario);
+                verificadorDeConta.check(userDetails);
 
                 if (jwtService.tokenValido(token, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken =
@@ -62,6 +67,8 @@ public class JwtFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
+        } catch (AccountStatusException e) {
+            log.warn("Token recusado, conta indisponível: {}", e.getMessage());
         } catch (Exception e) {
             log.warn("Token JWT inválido ou malformado: {}", e.getMessage());
         }

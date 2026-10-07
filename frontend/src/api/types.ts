@@ -165,6 +165,7 @@ export interface PedidoResponse {
   formaDePagamentoNome: string
   status: StatusPedido
   valor: number
+  fechado: boolean
   itens: ItemPedidoResponse[]
 }
 

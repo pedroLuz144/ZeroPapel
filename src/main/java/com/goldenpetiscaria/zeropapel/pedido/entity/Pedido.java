@@ -51,6 +51,15 @@ public class Pedido {
     @JoinColumn(name = "forma_de_pagamento_id", nullable = false)
     private FormaDePagamento formaDePagamento;
 
+    @Column(name = "taxa_plataforma_percentual", nullable = false, precision = 5, scale = 2)
+    private BigDecimal taxaPlataformaPercentual;
+
+    @Column(name = "taxa_pagamento_percentual", nullable = false, precision = 5, scale = 2)
+    private BigDecimal taxaPagamentoPercentual;
+
+    @Column(nullable = false)
+    private boolean fechado = false;
+
     @Column(nullable = false)
     private BigDecimal valor;
 }

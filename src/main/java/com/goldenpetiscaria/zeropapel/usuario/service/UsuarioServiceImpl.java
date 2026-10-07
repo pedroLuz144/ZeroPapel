@@ -6,6 +6,7 @@ import com.goldenpetiscaria.zeropapel.usuario.dto.request.AtualizarUsuarioReques
 import com.goldenpetiscaria.zeropapel.usuario.dto.request.CadastrarUsuarioRequest;
 import com.goldenpetiscaria.zeropapel.usuario.dto.response.UsuarioResponseDTO;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
+import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
 import com.goldenpetiscaria.zeropapel.usuario.repository.UsuarioRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -57,7 +58,12 @@ public class UsuarioServiceImpl implements UsuarioService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
 
         if (request.nome() != null) usuario.setNome(request.nome());
-        if (request.cargo() != null) usuario.setCargo(request.cargo());
+        if (request.cargo() != null && request.cargo() != usuario.getCargo()) {
+            if (usuario.getCargo() == Cargo.GERENTE) {
+                exigirOutroGerenteAtivo(usuario);
+            }
+            usuario.setCargo(request.cargo());
+        }
         if (request.senha() != null) usuario.setSenha(passwordEncoder.encode(request.senha()));
         if (request.usuario() != null && !request.usuario().equals(usuario.getUsuario())) {
             if (usuarioRepository.findByUsuario(request.usuario()).isPresent()) {
@@ -73,6 +79,9 @@ public class UsuarioServiceImpl implements UsuarioService {
     public void desativarUsuario(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
+        if (usuario.getCargo() == Cargo.GERENTE) {
+            exigirOutroGerenteAtivo(usuario);
+        }
         usuario.setAtivo(false);
         usuarioRepository.save(usuario);
         log.info("Usuário id={} desativado", id);
@@ -85,6 +94,15 @@ public class UsuarioServiceImpl implements UsuarioService {
         usuario.setAtivo(true);
         usuarioRepository.save(usuario);
         log.info("Usuário id={} ativado", id);
+    }
+
+    private void exigirOutroGerenteAtivo(Usuario usuario) {
+        if (!usuario.isAtivo()) {
+            return;
+        }
+        if (usuarioRepository.countByCargoAndAtivoTrue(Cargo.GERENTE) <= 1) {
+            throw new ConflitoException("Este é o único gerente ativo; promova outro usuário antes de alterá-lo");
+        }
     }
 
     private UsuarioResponseDTO toDTO(Usuario usuario) {

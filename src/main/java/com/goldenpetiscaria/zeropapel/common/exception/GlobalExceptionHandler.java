@@ -26,6 +26,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(RequisicaoInvalidaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Map<String, String>> handleRequisicaoInvalida(RequisicaoInvalidaException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.badRequest().body(error);
+    }
+
     @ExceptionHandler(ConflitoException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ResponseEntity<Map<String, String>> handleConflict(ConflitoException ex) {

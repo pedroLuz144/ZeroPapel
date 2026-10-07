@@ -12,6 +12,8 @@ import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
+import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
@@ -26,6 +28,8 @@ import java.util.List;
 
 @Service
 public class PedidoServiceImpl implements PedidoService {
+
+    private static final int LIMITE_DE_DIAS_DO_PAINEL = 31;
 
     private final PedidoRepository pedidoRepository;
     private final PlataformaRepository plataformaRepository;
@@ -53,7 +57,9 @@ public class PedidoServiceImpl implements PedidoService {
 
         Pedido pedido = new Pedido();
         pedido.setPlataforma(plataforma);
+        pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
         pedido.setFormaDePagamento(formaDePagamento);
+        pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         pedido.setNomeCliente(request.nomeCliente());
         pedido.setHorarioPedido(LocalDateTime.now());
         pedido.setStatus(StatusPedido.EM_ABERTO);
@@ -66,8 +72,10 @@ public class PedidoServiceImpl implements PedidoService {
     }
 
     @Override
-    public List<PedidoResponseDTO> listarPedidos() {
-        List<Pedido> pedidos = pedidoRepository.findAll();
+    @Transactional(readOnly = true)
+    public List<PedidoResponseDTO> listarPedidos(LocalDateTime de, LocalDateTime ate) {
+        Periodo periodo = Periodo.doDiaCorrenteSeAusente(de, ate, LIMITE_DE_DIAS_DO_PAINEL);
+        List<Pedido> pedidos = pedidoRepository.findDoPainelComItens(periodo.de(), periodo.ate());
         List<PedidoResponseDTO> resultado = new ArrayList<>();
         for (Pedido pedido : pedidos) {
             resultado.add(toDTO(pedido));
@@ -85,19 +93,20 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional
     public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
-        Pedido pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado para o ID informado"));
+        Pedido pedido = buscarAlteravel(id);
 
         if (request.plataformaId() != null) {
             Plataforma plataforma = plataformaRepository.findById(request.plataformaId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
             pedido.setPlataforma(plataforma);
+            pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
         }
 
         if (request.formaDePagamentoId() != null) {
             FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
             pedido.setFormaDePagamento(formaDePagamento);
+            pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         }
 
         if (request.nomeCliente() != null) {
@@ -117,8 +126,7 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional
     public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status) {
-        Pedido pedido = pedidoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado para o ID informado"));
+        Pedido pedido = buscarAlteravel(id);
         pedido.setStatus(status);
         return toDTO(pedidoRepository.save(pedido));
     }
@@ -126,9 +134,18 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional
     public void excluirPedido(Long id) {
+        Pedido pedido = buscarAlteravel(id);
+        pedidoRepository.delete(pedido);
+    }
+
+    private Pedido buscarAlteravel(Long id) {
         Pedido pedido = pedidoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Pedido não encontrado para o ID informado"));
-        pedidoRepository.delete(pedido);
+        if (pedido.isFechado()) {
+            throw new ConflitoException(
+                    "Pedido já incluído num fechamento de caixa; não pode mais ser alterado nem excluído");
+        }
+        return pedido;
     }
 
     private List<ItemPedido> montarItensPedido(List<ItemPedidoRequest> itensRequest, Pedido pedido) {
@@ -178,6 +195,7 @@ public class PedidoServiceImpl implements PedidoService {
                 pedido.getFormaDePagamento().getNome(),
                 pedido.getStatus(),
                 pedido.getValor(),
+                pedido.isFechado(),
                 itensDTO
         );
     }
