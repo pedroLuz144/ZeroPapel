@@ -22,6 +22,8 @@ import java.util.List;
 @Service
 public class FechamentoServiceImpl implements FechamentoService {
 
+    private static final BigDecimal CEM = new BigDecimal("100");
+
     private final FechamentoCaixaRepository fechamentoRepository;
     private final PedidoRepository pedidoRepository;
 
@@ -154,8 +156,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         if (totalPedidos == 0) {
             ticketMedio = BigDecimal.ZERO;
         } else {
-            double ticketMedioDouble = faturamentoBruto.doubleValue() / totalPedidos;
-            ticketMedio = BigDecimal.valueOf(ticketMedioDouble).setScale(2, RoundingMode.HALF_UP);
+            ticketMedio = faturamentoBruto.divide(BigDecimal.valueOf(totalPedidos), 2, RoundingMode.HALF_UP);
         }
 
         return new ResumoFechamentoDTO(totalPedidos, faturamentoBruto, totalTaxas, faturamentoLiquido, ticketMedio);
@@ -263,8 +264,8 @@ public class FechamentoServiceImpl implements FechamentoService {
                     if (itemPedido.getItem().getId().equals(itemId)) {
                         nomeDoItem = itemPedido.getItem().getNome();
                         quantidadeTotal += itemPedido.getQuantidade();
-                        double subtotal = itemPedido.getPrecoUnitario().doubleValue() * itemPedido.getQuantidade();
-                        receitaTotal = receitaTotal.add(BigDecimal.valueOf(subtotal));
+                        receitaTotal = receitaTotal.add(
+                                itemPedido.getPrecoUnitario().multiply(BigDecimal.valueOf(itemPedido.getQuantidade())));
                     }
                 }
             }
@@ -337,16 +338,14 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     private BigDecimal calcularTaxaPlataforma(Pedido pedido) {
-        double valor = pedido.getValor().doubleValue();
-        double percentual = pedido.getPlataforma().getTaxaPercentual().doubleValue();
-        double taxa = valor * percentual / 100;
-        return BigDecimal.valueOf(taxa).setScale(2, RoundingMode.HALF_UP);
+        return calcularTaxa(pedido.getValor(), pedido.getPlataforma().getTaxaPercentual());
     }
 
     private BigDecimal calcularTaxaPagamento(Pedido pedido) {
-        double valor = pedido.getValor().doubleValue();
-        double percentual = pedido.getFormaDePagamento().getTaxaPercentual().doubleValue();
-        double taxa = valor * percentual / 100;
-        return BigDecimal.valueOf(taxa).setScale(2, RoundingMode.HALF_UP);
+        return calcularTaxa(pedido.getValor(), pedido.getFormaDePagamento().getTaxaPercentual());
+    }
+
+    private BigDecimal calcularTaxa(BigDecimal valor, BigDecimal percentual) {
+        return valor.multiply(percentual).divide(CEM, 2, RoundingMode.HALF_UP);
     }
 }
