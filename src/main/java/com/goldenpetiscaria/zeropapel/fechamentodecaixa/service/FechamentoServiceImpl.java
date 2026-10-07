@@ -55,6 +55,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         fechamento.setTicketMedio(calculado.resumo().ticketMedio());
 
         FechamentoCaixa salvo = fechamentoRepository.save(fechamento);
+        pedidoRepository.marcarComoFechados(request.de(), request.ate());
 
         return new FechamentoResponseDTO(
                 salvo.getId(),
