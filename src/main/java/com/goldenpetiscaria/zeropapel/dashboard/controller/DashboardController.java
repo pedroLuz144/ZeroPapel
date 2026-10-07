@@ -1,6 +1,7 @@
 package com.goldenpetiscaria.zeropapel.dashboard.controller;
 
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.FechamentoResponseDTO;
+import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.service.FechamentoService;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -9,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
@@ -20,6 +20,8 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/dashboard")
 public class DashboardController {
+
+    private static final int LIMITE_DE_DIAS_DO_CONSOLIDADO = 92;
 
     private final FechamentoService fechamentoService;
 
@@ -35,9 +37,8 @@ public class DashboardController {
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime ate) {
 
-        LocalDateTime inicio = de != null ? de : LocalDate.now().atStartOfDay();
-        LocalDateTime fim = ate != null ? ate : LocalDateTime.now();
+        Periodo periodo = Periodo.doDiaCorrenteSeAusente(de, ate, LIMITE_DE_DIAS_DO_CONSOLIDADO);
 
-        return fechamentoService.calcularPrevia(inicio, fim);
+        return fechamentoService.calcularPrevia(periodo.de(), periodo.ate());
     }
 }
