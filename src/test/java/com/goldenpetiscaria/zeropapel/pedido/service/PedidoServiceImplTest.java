@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.pedido.service;
 
+import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
@@ -194,6 +195,76 @@ class PedidoServiceImplTest {
     }
 
     @Nested
+    class PedidoFechado {
+
+        @Test
+        @DisplayName("pedido dentro de um fechamento nao pode ser editado")
+        void atualizarPedido_lancaConflito_quandoOPedidoJaFoiFechado() {
+            Pedido fechado = pedidoFechado();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
+
+            assertThatThrownBy(() -> service.atualizarPedido(1L,
+                    new AtualizarPedidoRequest(null, "Outro Nome", null, null)))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("fechamento de caixa");
+
+            assertThat(fechado.getNomeCliente()).isNotEqualTo("Outro Nome");
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("pedido dentro de um fechamento nao pode ter o status mudado")
+        void atualizarStatus_lancaConflito_quandoOPedidoJaFoiFechado() {
+            Pedido fechado = pedidoFechado();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+                    .isInstanceOf(ConflitoException.class);
+
+            assertThat(fechado.getStatus()).isEqualTo(StatusPedido.CONCLUIDO);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("pedido dentro de um fechamento nao pode ser excluido")
+        void excluirPedido_lancaConflito_quandoOPedidoJaFoiFechado() {
+            Pedido fechado = pedidoFechado();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
+
+            assertThatThrownBy(() -> service.excluirPedido(1L))
+                    .isInstanceOf(ConflitoException.class);
+
+            verify(pedidoRepository, never()).delete(any());
+        }
+
+        @Test
+        void excluirPedido_excluiNormalmente_quandoOPedidoNaoFoiFechado() {
+            Pedido aberto = pedidoExistente(plataforma(1L, "Balcao", "0.00"),
+                    formaDePagamento(2L, "Pix", "0.00"));
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
+
+            service.excluirPedido(1L);
+
+            verify(pedidoRepository).delete(aberto);
+        }
+
+        @Test
+        void registrarPedido_criaPedidoAberto() {
+            Plataforma balcao = plataforma(1L, "Balcao", "0.00");
+            FormaDePagamento pix = formaDePagamento(2L, "Pix", "0.00");
+            when(plataformaRepository.findById(1L)).thenReturn(Optional.of(balcao));
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(pix));
+            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.00")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.registrarPedido(new AdicionarPedidoRequest(1L, null, 2L,
+                    List.of(new ItemPedidoRequest(3L, 1))));
+
+            assertThat(capturarSalvo().isFechado()).isFalse();
+        }
+    }
+
+    @Nested
     class Status {
 
         @Test
@@ -222,6 +293,14 @@ class PedidoServiceImplTest {
         ArgumentCaptor<Pedido> captor = ArgumentCaptor.forClass(Pedido.class);
         verify(pedidoRepository).save(captor.capture());
         return captor.getValue();
+    }
+
+    private Pedido pedidoFechado() {
+        Pedido pedido = pedidoExistente(plataforma(1L, "iFood", "12.00"),
+                formaDePagamento(2L, "Credito", "2.99"));
+        pedido.setStatus(StatusPedido.CONCLUIDO);
+        pedido.setFechado(true);
+        return pedido;
     }
 
     private Pedido pedidoExistente(Plataforma plataforma, FormaDePagamento formaDePagamento) {
