@@ -326,6 +326,44 @@ class FechamentoServiceImplTest {
     }
 
     @Nested
+    class CongelamentoDoPeriodo {
+
+        @Test
+        @DisplayName("fechar o caixa marca os pedidos do periodo como fechados")
+        void realizarFechamento_marcaOsPedidosDoPeriodo() {
+            Plataforma balcao = plataforma("Balcao", "0.00");
+            FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
+            when(fechamentoRepository.countByPeriodoSobreposto(DE, ATE)).thenReturn(0L);
+            darPedidos(pedido("50.00", balcao, dinheiro, 20));
+            when(fechamentoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.realizarFechamento(new RealizarFechamentoRequest(DE, ATE), gerente());
+
+            verify(pedidoRepository).marcarComoFechados(DE, ATE);
+        }
+
+        @Test
+        @DisplayName("fechamento recusado por sobreposicao nao marca pedido nenhum")
+        void realizarFechamento_naoMarcaNada_quandoPeriodoJaTemFechamento() {
+            when(fechamentoRepository.countByPeriodoSobreposto(DE, ATE)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.realizarFechamento(new RealizarFechamentoRequest(DE, ATE), gerente()))
+                    .isInstanceOf(ConflitoException.class);
+
+            verify(pedidoRepository, never()).marcarComoFechados(any(), any());
+        }
+
+        @Test
+        void calcularPrevia_naoMarcaPedido_porqueNaoPersisteNada() {
+            darPedidos();
+
+            service.calcularPrevia(DE, ATE);
+
+            verify(pedidoRepository, never()).marcarComoFechados(any(), any());
+        }
+    }
+
+    @Nested
     class BuscarFechamento {
 
         @Test
