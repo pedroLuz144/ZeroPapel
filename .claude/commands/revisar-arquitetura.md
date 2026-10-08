@@ -25,7 +25,7 @@ Injeção de repositório de outra feature que já existe hoje:
 |---|---|
 | `item` | `CategoriaRepository` |
 | `categoria` | `ItemRepository` |
-| `pedido` | `PlataformaRepository`, `FormaDePagamentoRepository`, `ItemRepository` |
+| `pedido` | `FormaDePagamentoRepository`, `ItemRepository` |
 | `plataforma` | `PedidoRepository` |
 | `formadepagamento` | `PedidoRepository` |
 | `fechamentodecaixa` | `PedidoRepository` |

@@ -131,9 +131,17 @@ Princípios:
 ---
 
 ## Ordem de implementação sugerida
-1. **Domínio multi-loja:** `Loja`, `CanalDeVenda`, remoção de `taxaPercentual` de `Plataforma` (+ migração).
+1. ✅ **Domínio multi-loja (concluída em 07/10/2026):** `Loja`, `CanalDeVenda`, remoção de
+   `taxaPercentual` de `Plataforma` (+ migrações V5 a V8). A taxa congelada no pedido passa a vir
+   do canal da loja (`CanalDeVendaService.buscarCanalAtivo`).
 2. **`Pedido`:** FK `Loja`, `plataformaPedidoId`, `status`, unique `(plataforma, plataformaPedidoId)`.
-3. **Fechamento:** regra condicional de taxa (decisão 9) e exclusão de `CANCELLED`.
+   - ✅ Já entrou junto com a etapa 1: FK `Loja` (`pedidos.loja_id` not null, V7), `lojaId` no
+     `AdicionarPedidoRequest` e seletor de loja no PDV.
+   - Falta: `plataformaPedidoId` + unique `(plataforma, plataformaPedidoId)`; `ItemPedido` com
+     FK de item opcional e `nomeItem` (decisão 4); mapear o status do iFood para o `StatusPedido`
+     que já existe.
+3. **Fechamento:** regra condicional de taxa (decisão 9) e filtro por loja — hoje fechamento e
+   dashboard consolidam todas as lojas juntas. A exclusão de cancelados já existe (`CANCELADO`).
 4. **Ingestão iFood:** auth OAuth (app-level) → polling + ack → inbox → busca pedido → translator → `PedidoService`.
 5. **Financial (conciliação):** fatia posterior de prova real.
 ```

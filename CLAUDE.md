@@ -9,10 +9,13 @@ Sistema de gestão de caixa para uma petiscaria. O objetivo central é automatiz
 2. **Fechamento de caixa** — dashboard para o gerente consultar o consolidado da noite, já com deduções de taxas de plataforma e forma de pagamento calculadas automaticamente
 
 Implementado: Usuario, Item, Categoria, Pedido, ItemPedido, Plataforma, FormaDePagamento,
+Loja, CanalDeVenda (domínio multi-loja, etapa 1 de `docs/integracao-ifood.md`),
 FechamentoCaixa (`POST /fechamento` persiste) e o consolidado em tempo real (`GET /dashboard`),
 além da SPA em `frontend/`.
 Ainda por vir: Entregador; integração iFood/AnotaAi (branch `feat/ifood`, em andamento);
-aba Integrações em Configurações.
+fechamento e dashboard filtrados por loja e a regra condicional de taxa por origem (hoje o
+consolidado soma todas as lojas juntas); `Pedido.plataformaPedidoId` e `ItemPedido` com item
+opcional; aba Integrações em Configurações.
 
 As classes de integração devem depender de `PedidoService` — elas traduzem o formato externo para `AdicionarPedidoRequest` e delegam para o service, sem duplicar lógica de negócio.
 
@@ -42,6 +45,11 @@ O que **não** pode:
 - ❌ Um controller acessar repositório direto
 - ❌ Dependência circular entre features — se A e B precisam uma da outra, o pedaço comum sobe
   para `common/` ou vira uma feature nova
+
+Quando outra feature precisa da entidade para montar uma relação JPA, o service dono pode expor
+`buscarEntidadePorId` na interface (`LojaService`, `PlataformaService`). É o caminho para
+`CanalDeVenda` apontar para `Loja` e `Plataforma` sem injetar repositório alheio. O retorno é
+só para uso entre services: controller continua devolvendo ResponseDTO.
 
 `integracoes/` (iFood, AnotaAi) **compõe** `PedidoService` — traduz o formato externo para
 `AdicionarPedidoRequest` e delega. Nunca `implements PedidoService`, nunca duplica regra de negócio.
@@ -122,20 +130,26 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (06/10/2026):** 66 testes no Java, todos passando (`./mvnw test`).
+**Estado atual (07/10/2026):** 98 testes no Java, todos passando (`./mvnw test`).
 
 | Classe de teste | Cobre |
 |---|---|
 | `FechamentoServiceImplTest` (22) | taxa, taxa congelada, ticket médio, ranking, agrupamentos, marcação do período |
-| `PedidoServiceImplTest` (15) | congelamento das taxas, imutabilidade do pedido fechado, preço travado, status |
+| `PedidoServiceImplTest` (19) | congelamento das taxas (a da plataforma vem do canal de venda da loja), imutabilidade do pedido fechado, preço travado, status |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
+| `CanalDeVendaServiceImplTest` (15) | unicidade loja × plataforma, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos |
+| `LojaServiceImplTest` (7) | cadastro, nome único, invariante da única loja ativa, loja inexistente |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
+| `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
 | `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
 
 Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `PlataformaServiceImpl`,
 `FormaDePagamentoServiceImpl`, e os controllers. O frontend tem só
-`frontend/src/utils/formato.spec.ts`. Não afirme cobertura além do que a tabela acima lista.
+`frontend/src/utils/formato.spec.ts` (7), `frontend/src/utils/periodo.spec.ts` (8),
+`frontend/src/utils/rotaInterna.spec.ts` (10), `frontend/src/api/http.spec.ts` (15),
+`frontend/src/components/CarrinhoEditor.spec.ts` (7) e
+`frontend/src/views/LoginView.spec.ts` (10). Não afirme cobertura além do que a tabela acima lista.
 
 ## Environment Setup
 
@@ -191,7 +205,9 @@ item/                 → itens do cardápio
 categoria/            → categorias do cardápio
 pedido/               → pedidos e itens de pedido (Pedido + ItemPedido)
   enumerator/          → StatusPedido (etapas do kanban)
-plataforma/           → plataformas de venda (Balcão, iFood, etc.)
+plataforma/           → tipos de canal (Balcão, iFood, etc.); sem taxa
+loja/                 → lojas (multi-loja); sem DELETE, desativa por `ativo`
+canaldevenda/         → vínculo Loja × Plataforma: merchantId, taxa e ativo
 formadepagamento/     → formas de pagamento
 fechamentodecaixa/    → fechamento de caixa com cálculo de taxas (persiste um registro)
 dashboard/            → GET /dashboard: mesmo consolidado, em tempo real e só-leitura
@@ -266,9 +282,11 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **Item** — menu item with price, status, and FK to `Categoria`; table `cardapio`
 - **Categoria** — item categories; table `categorias`
 - **RefreshToken** — linked to `Usuario`, has expiration; table `refresh_tokens`
-- **Plataforma** — origin platform (e.g. Balcão, iFood) with configurable `taxaPercentual` and `entrega` flag (true = delivery channel like iFood/AnotaAi, has an `EM_ROTA` step; false = counter, used by the PDV); table `plataforma`
+- **Plataforma** — channel type (e.g. Balcão, iFood): just `nome` and the `entrega` flag (true = delivery channel like iFood/AnotaAi, has an `EM_ROTA` step; false = counter, used by the PDV). No fee here anymore — it lives on `CanalDeVenda`; table `plataforma`
+- **Loja** — store with unique `nome` and `ativo`; every order belongs to one. No DELETE: a store is deactivated via `ativo`, and the only active store cannot be deactivated; table `loja` (V5 seeds 'Loja principal')
+- **CanalDeVenda** — link Loja × Plataforma with `merchantId` (unique, null for Balcão), `taxaPercentual` (the fee of this store on this channel) and `ativo`; unique `(loja, plataforma)`; table `canal_de_venda`. An order can only be registered through an active channel of an active store (`CanalDeVendaService.buscarCanalAtivo`)
 - **FormaDePagamento** — payment method with configurable `taxaPercentual`; table `forma_de_pagamento`
-- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Plataforma` and `FormaDePagamento`; table `pedidos`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
+- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Loja` (set at creation, never changes), `Plataforma` and `FormaDePagamento`; table `pedidos`. `AdicionarPedidoRequest` is `(lojaId, plataformaId, nomeCliente, formaDePagamentoId, itens)`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
 - **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
 - **ItemPedido** — join entity between `Pedido` and `Item`; stores `quantidade` and `precoUnitario` (price locked at order time); table `itens_pedido`
 
@@ -302,8 +320,23 @@ As taxas são **congeladas no pedido** no momento da venda, em
 `Pedido.taxaPlataformaPercentual` e `Pedido.taxaPagamentoPercentual`, exatamente como
 `ItemPedido.precoUnitario`. `FechamentoServiceImpl` lê essas colunas e **nunca** navega para
 `pedido.getPlataforma().getTaxaPercentual()` — fazer isso faz um reajuste de taxa reescrever
-todo o histórico já fechado. `Plataforma.taxaPercentual` e `FormaDePagamento.taxaPercentual`
+todo o histórico já fechado. `CanalDeVenda.taxaPercentual` e `FormaDePagamento.taxaPercentual`
 são editáveis na tela de Configurações e valem só para vendas novas.
+
+A taxa da plataforma vem do **canal de venda** (loja × plataforma), não mais de
+`Plataforma.taxaPercentual`, que deixou de existir (V8). `PedidoServiceImpl` chama
+`CanalDeVendaService.buscarCanalAtivo(lojaId, plataformaId)` e congela
+`canal.getTaxaPercentual()` no pedido. Ao trocar a plataforma de um pedido, o canal é buscado
+na loja do próprio pedido: a loja do pedido não muda.
+
+### Exclusão de plataforma e `on delete cascade` no canal
+
+`canal_de_venda.plataforma_id` é `on delete cascade` (V6, e `@OnDelete` na entidade): excluir
+uma plataforma leva junto os canais dela. É no banco de propósito — `plataforma` não pode
+consultar `canaldevenda` para limpar os canais antes, porque `canaldevenda` já depende de
+`plataforma` e isso seria dependência circular entre features. O histórico não corre risco:
+`excluirPlataforma` já recusa com `ConflitoException` quando existe pedido vinculado à
+plataforma, então o cascade só alcança canais de plataforma que nunca vendeu.
 
 ### Security
 
@@ -311,6 +344,7 @@ Stateless JWT auth via `JwtFilter`. Access tokens expire in 24 h; refresh tokens
 
 - **Pedido** — write operations (register, update, delete) open to all authenticated users; only `DELETE` requires GERENTE
 - **Plataforma / FormaDePagamento** — all write operations restricted to GERENTE; reads open to all authenticated
+- **Loja / CanalDeVenda** — all write operations restricted to GERENTE; reads open to all authenticated (the PDV needs the store list)
 - **Item / Categoria** — all write operations restricted to GERENTE; reads open to all authenticated
 - **Fechamento / Dashboard** — all operations restricted to GERENTE
 
@@ -325,6 +359,8 @@ Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `
 - `ConflitoException` → 409
 - `TokenInvalidoException` → 401
 - `MethodArgumentNotValidException` → 400
+
+Requisição não autenticada a rota protegida responde 401 (`security/PontoDeEntradaNaoAutenticado`); papel insuficiente responde 403 (`AuthorizationDeniedException` no `GlobalExceptionHandler`, ou `security/ManipuladorDeAcessoNegado` quando a recusa acontece na cadeia de filtros).
 
 All error responses return JSON `{ "error": "<message>" }`.
 
