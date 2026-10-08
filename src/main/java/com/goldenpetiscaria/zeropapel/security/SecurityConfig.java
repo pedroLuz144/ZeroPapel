@@ -29,13 +29,19 @@ public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
+    private final PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado;
+    private final ManipuladorDeAcessoNegado manipuladorDeAcessoNegado;
 
     public SecurityConfig(
             JwtFilter jwtFilter,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado,
+            ManipuladorDeAcessoNegado manipuladorDeAcessoNegado
     ) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
+        this.pontoDeEntradaNaoAutenticado = pontoDeEntradaNaoAutenticado;
+        this.manipuladorDeAcessoNegado = manipuladorDeAcessoNegado;
     }
 
     @Value("${cors.allowed-origin}")
@@ -57,6 +63,10 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(excecoes -> excecoes
+                        .authenticationEntryPoint(pontoDeEntradaNaoAutenticado)
+                        .accessDeniedHandler(manipuladorDeAcessoNegado)
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
