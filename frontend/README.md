@@ -24,7 +24,7 @@ npm run dev
 
 Abre em `http://localhost:5173`. O dev server faz proxy das rotas de API
 (`/auth`, `/pedidos`, `/itens`, `/categorias`, `/plataformas`, `/formasDePagamento`,
-`/fechamento`, `/usuarios`) para `http://localhost:8080` — sem CORS.
+`/fechamento`, `/dashboard`, `/usuarios`, `/lojas`, `/canaisDeVenda`) para `http://localhost:8080` — sem CORS.
 
 ## Build de produção
 
@@ -82,4 +82,5 @@ A aba **Integrações** de Configurações foi deixada de fora — entra junto c
 integração iFood.
 
 `Configurações` é composta por abas em `views/config/` (`AbaCardapio`, `AbaCategorias`,
-`AbaTaxas` — reusada para plataformas e formas de pagamento —, `AbaUsuarios`).
+`AbaPlataformas`, `AbaLojas`, `AbaCanaisDeVenda`, `AbaFormasPagamento`, `AbaUsuarios`).
+A taxa de cada plataforma é configurada por loja, em `AbaCanaisDeVenda`.

@@ -124,7 +124,9 @@ src/main/java/com/goldenpetiscaria/zeropapel/
   item/              itens do cardápio
   categoria/         categorias do cardápio
   pedido/            pedidos e itens de pedido, ciclo de vida do StatusPedido
-  plataforma/        canais de venda (Balcão, iFood) com taxa configurável
+  plataforma/        tipos de canal (Balcão, iFood), sem taxa
+  loja/              lojas (multi-loja)
+  canaldevenda/      vínculo loja × plataforma, com merchantId e taxa configurável
   formadepagamento/  formas de pagamento com taxa configurável
   fechamentodecaixa/ cálculo e persistência do fechamento
   dashboard/         o mesmo consolidado, em tempo real e só leitura
