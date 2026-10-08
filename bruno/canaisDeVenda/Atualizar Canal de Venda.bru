@@ -1,0 +1,23 @@
+meta {
+  name: Atualizar Canal de Venda
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/canaisDeVenda/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "taxaPercentual": 13.50,
+    "merchantId": "merchant-id-de-exemplo",
+    "ativo": true
+  }
+}
