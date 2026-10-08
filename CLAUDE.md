@@ -130,13 +130,15 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (07/10/2026):** 98 testes no Java, todos passando (`./mvnw test`).
+**Estado atual (07/10/2026):** 121 testes no Java, todos passando (`./mvnw test`).
 
 | Classe de teste | Cobre |
 |---|---|
 | `FechamentoServiceImplTest` (22) | taxa, taxa congelada, ticket médio, ranking, agrupamentos, marcação do período |
 | `PedidoServiceImplTest` (19) | congelamento das taxas (a da plataforma vem do canal de venda da loja), imutabilidade do pedido fechado, preço travado, status |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
+| `UsuarioMasterServiceImplTest` (14) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro não cria |
+| `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
 | `CanalDeVendaServiceImplTest` (15) | unicidade loja × plataforma, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos |
 | `LojaServiceImplTest` (7) | cadastro, nome único, invariante da única loja ativa, loja inexistente |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
@@ -153,7 +155,7 @@ Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `PlataformaServiceIm
 
 ## Environment Setup
 
-The app requires a `.env` file (use `envExample` as template) with:
+The app requires a `.env` file in the project root (use `.env.example` as template) with:
 
 ```
 URL_BD=jdbc:mariadb://localhost:3306/zeropapel
@@ -161,10 +163,44 @@ USER_BD=root
 SENHA_BD=root
 JWT_SECRET=<base64-encoded-secret>
 JWT_EXPIRATION_MS=86400000
-CORS_ALLOWED_ORIGIN=http://localhost:8080
+CORS_ALLOWED_ORIGIN=http://localhost:5173
+ADMIN_USUARIO=admin
+ADMIN_SENHA=<senha-do-primeiro-gerente>
+ADMIN_NOME=Administrador
 ```
 
+The `.env` is loaded by the application itself: `application.properties` has
+`spring.config.import=optional:file:.env[.properties]`, so `./mvnw spring-boot:run` and
+`./mvnw test` work without exporting anything. Things to know:
+
+- The path is relative to the **working directory** (the project root for Maven and surefire).
+  Running the jar from another directory does not find it — pass real environment variables there.
+- `optional:` is what lets CI and production run with no `.env` at all. Do not remove it.
+- Precedence: JVM system property (`-DJWT_SECRET=...`) > real environment variable > `.env` >
+  defaults in `application.properties`. A variable exported in the shell or the IDE always wins.
+- The file is parsed as Java **properties**, not as shell: no quotes, no `export`, and a backslash
+  in a value must be doubled. CRLF line endings are fine.
+- `CORS_ALLOWED_ORIGIN` is a single origin. With `npm run dev` it must be `http://localhost:5173`
+  (the browser sends that `Origin` on POST and the Vite proxy does not rewrite it); the SPA served
+  from the jar is same-origin and never hits CORS.
+- `ADMIN_*` and `SEED_SENHA` are optional; the other six are required and the app fails to start
+  without them.
+
 Requires a running **MariaDB** instance.
+
+### Usuário master
+
+`InicializadorUsuarioMaster` (`usuario/inicializacao/`, um `ApplicationRunner`, portanto depois do
+Flyway) chama `UsuarioService.criarUsuarioMasterSeNaoHouverUsuarios` em toda subida. Só age com
+a tabela `usuarios` **vazia** (usuário inativo também conta como existente): cria um `GERENTE`
+ativo com `ADMIN_USUARIO`, `ADMIN_SENHA` e `ADMIN_NOME` (padrão "Administrador"), pelo mesmo
+`cadastrarUsuario` e validando o mesmo `CadastrarUsuarioRequest` do `POST /usuarios`. A checagem e
+a criação ficam numa única transação.
+
+**Não existe senha padrão.** Tabela vazia sem `ADMIN_USUARIO` ou `ADMIN_SENHA` (ausentes ou em
+branco): a aplicação sobe e loga um WARN, sem criar ninguém. Senha fora da regra do cadastro:
+loga ERROR e não cria. A senha e o hash nunca vão para o log. O `scripts/popular_banco.py`
+continua sendo só o seed de dados de demonstração.
 
 O schema é versionado com **Flyway** (`src/main/resources/db/migration/`), não mais derivado
 pelo Hibernate. `ddl-auto=validate`: a aplicação não sobe se entidade e schema divergirem.
@@ -189,7 +225,8 @@ usuario/              → cadastro e gestão de usuários
   dto/request/
   dto/response/
   entity/             → Usuario (implements UserDetails)
-  enumerator/         → Cargo (GERENTE | OPERADOR)
+  enumerator/         → Cargo (GERENTE | OPERADOR), ResultadoUsuarioMaster
+  inicializacao/      → InicializadorUsuarioMaster (cria o primeiro gerente na subida)
   repository/
   service/
 
