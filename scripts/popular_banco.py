@@ -264,8 +264,8 @@ def popular_banco():
 
             for nome_item, quantidade in itens_do_pedido:
                 cursor.execute(
-                    "INSERT INTO itens_pedido (pedido_id, item_id, quantidade, preco_unitario) VALUES (%s, %s, %s, %s)",
-                    (id_do_pedido, ids_dos_itens[nome_item], quantidade, precos_dos_itens[nome_item])
+                    "INSERT INTO itens_pedido (pedido_id, item_id, nome_item, quantidade, preco_unitario) VALUES (%s, %s, %s, %s, %s)",
+                    (id_do_pedido, ids_dos_itens[nome_item], nome_item, quantidade, precos_dos_itens[nome_item])
                 )
 
         conexao.commit()
