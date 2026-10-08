@@ -11,13 +11,15 @@ Sistema de gestão de caixa para uma petiscaria. O objetivo central é automatiz
 Implementado: Usuario, Item, Categoria, Pedido, ItemPedido, Plataforma, FormaDePagamento,
 Loja, CanalDeVenda (domínio multi-loja, etapa 1 de `docs/integracao-ifood.md`),
 FechamentoCaixa (`POST /fechamento` persiste) e o consolidado em tempo real (`GET /dashboard`),
-além da SPA em `frontend/`.
-Ainda por vir: Entregador; integração iFood/AnotaAi (branch `feat/ifood`, em andamento);
+além da SPA em `frontend/`. O domínio já recebe pedido de plataforma externa
+(`Pedido.plataformaPedidoId`, `ItemPedido` com item opcional e nome gravado,
+`PedidoService.registrarPedidoExterno`; etapa 2 do mesmo doc), mas ninguém chama essa porta ainda.
+Ainda por vir: Entregador; integração iFood/AnotaAi (branch `feat/ifood`, em andamento: falta a
+ingestão em si e o mapeamento do status do iFood para `StatusPedido`);
 fechamento e dashboard filtrados por loja e a regra condicional de taxa por origem (hoje o
-consolidado soma todas as lojas juntas); `Pedido.plataformaPedidoId` e `ItemPedido` com item
-opcional; aba Integrações em Configurações.
+consolidado soma todas as lojas juntas); aba Integrações em Configurações.
 
-As classes de integração devem depender de `PedidoService` — elas traduzem o formato externo para `AdicionarPedidoRequest` e delegam para o service, sem duplicar lógica de negócio.
+As classes de integração devem depender de `PedidoService` — elas traduzem o formato externo para `RegistrarPedidoExternoRequest` e delegam para `PedidoService.registrarPedidoExterno`, sem duplicar lógica de negócio.
 
 ## Rules
 - Não escrever comentário dentro do código. Se a informação é necessária e não cabe num nome de
@@ -52,7 +54,10 @@ Quando outra feature precisa da entidade para montar uma relação JPA, o servic
 só para uso entre services: controller continua devolvendo ResponseDTO.
 
 `integracoes/` (iFood, AnotaAi) **compõe** `PedidoService` — traduz o formato externo para
-`AdicionarPedidoRequest` e delega. Nunca `implements PedidoService`, nunca duplica regra de negócio.
+`RegistrarPedidoExternoRequest` e delega para `registrarPedidoExterno`. Nunca
+`implements PedidoService`, nunca duplica regra de negócio. Não é o `AdicionarPedidoRequest`
+porque esse é o corpo do `POST /pedidos`: abrir preço e nome livres nele deixaria o operador
+registrar venda de balcão com preço arbitrário.
 (`IfoodClient` hoje viola isso; é stub WIP a ser refatorado.)
 
 ## Commands
@@ -130,12 +135,12 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (07/10/2026):** 121 testes no Java, todos passando (`./mvnw test`).
+**Estado atual (07/10/2026):** 141 testes no Java, todos passando (`./mvnw test`).
 
 | Classe de teste | Cobre |
 |---|---|
-| `FechamentoServiceImplTest` (22) | taxa, taxa congelada, ticket médio, ranking, agrupamentos, marcação do período |
-| `PedidoServiceImplTest` (19) | congelamento das taxas (a da plataforma vem do canal de venda da loja), imutabilidade do pedido fechado, preço travado, status |
+| `FechamentoServiceImplTest` (26) | taxa, taxa congelada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
+| `PedidoServiceImplTest` (35) | congelamento das taxas (a da plataforma vem do canal de venda da loja), imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo) e recusa de edição de pedido externo |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
 | `UsuarioMasterServiceImplTest` (14) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
@@ -323,9 +328,9 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **Loja** — store with unique `nome` and `ativo`; every order belongs to one. No DELETE: a store is deactivated via `ativo`, and the only active store cannot be deactivated; table `loja` (V5 seeds 'Loja principal')
 - **CanalDeVenda** — link Loja × Plataforma with `merchantId` (unique, null for Balcão), `taxaPercentual` (the fee of this store on this channel) and `ativo`; unique `(loja, plataforma)`; table `canal_de_venda`. An order can only be registered through an active channel of an active store (`CanalDeVendaService.buscarCanalAtivo`)
 - **FormaDePagamento** — payment method with configurable `taxaPercentual`; table `forma_de_pagamento`
-- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Loja` (set at creation, never changes), `Plataforma` and `FormaDePagamento`; table `pedidos`. `AdicionarPedidoRequest` is `(lojaId, plataformaId, nomeCliente, formaDePagamentoId, itens)`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`.
+- **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Loja` (set at creation, never changes), `Plataforma` and `FormaDePagamento`; table `pedidos`. `AdicionarPedidoRequest` is `(lojaId, plataformaId, nomeCliente, formaDePagamentoId, itens)`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`. `plataformaPedidoId` (nullable) is the order id on the external platform (the iFood `orderId`); null for PDV orders; unique `(plataforma_id, plataforma_pedido_id)` (V9)
 - **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
-- **ItemPedido** — join entity between `Pedido` and `Item`; stores `quantidade` and `precoUnitario` (price locked at order time); table `itens_pedido`
+- **ItemPedido** — line of a `Pedido`; stores `nomeItem`, `quantidade` and `precoUnitario`, all three always filled and locked at order time; FK to `Item` is **optional** (set by the PDV, null on an external order — never assume `getItem()` is non-null, and read the name from `nomeItem`, not from `item.getNome()`); table `itens_pedido` (V10)
 
 ### Regra de faturamento
 
@@ -365,6 +370,29 @@ A taxa da plataforma vem do **canal de venda** (loja × plataforma), não mais d
 `CanalDeVendaService.buscarCanalAtivo(lojaId, plataformaId)` e congela
 `canal.getTaxaPercentual()` no pedido. Ao trocar a plataforma de um pedido, o canal é buscado
 na loja do próprio pedido: a loja do pedido não muda.
+
+### Pedido de plataforma externa
+
+`PedidoService.registrarPedidoExterno(RegistrarPedidoExternoRequest)` é a porta de entrada da
+integração e **não é exposto por controller**. Como o `@Valid` do MVC não roda, o próprio service
+valida o request com `jakarta.validation.Validator` e recusa com `RequisicaoInvalidaException`.
+Canal ativo, congelamento das duas taxas, cálculo do valor e status inicial `EM_ABERTO` são os
+mesmos métodos privados do `registrarPedido`; só a origem dos itens muda (nome e preço vêm do
+request, `item` fica nulo, o cardápio não é consultado).
+
+É **idempotente** por `(plataformaId, plataformaPedidoId)`: se o pedido já existe, devolve o
+existente sem gravar e sem alterar nada, porque o polling do iFood reentrega eventos. A unique
+do banco é a segunda barreira. No MariaDB, linhas com `plataforma_pedido_id` nulo não colidem
+entre si, então pedido de balcão não é afetado pela unique.
+
+Pedido com `plataformaPedidoId` é **somente leitura para conteúdo**: `atualizarPedido` recusa
+com `ConflitoException` (409) e a SPA esconde o Editar. `atualizarStatus` e `excluirPedido`
+seguem as regras de qualquer pedido. O `POST /pedidos` do PDV continua exigindo `itemId` do
+cardápio e travando o preço do cardápio.
+
+No ranking de itens, item de cardápio agrupa pelo id e item externo pelo nome gravado; os dois
+grupos nunca se misturam, mesmo com nome igual. `ItemRankingDTO.itemId` e
+`ItemPedidoResponseDTO.itemId` são nulos para item externo.
 
 ### Exclusão de plataforma e `on delete cascade` no canal
 
