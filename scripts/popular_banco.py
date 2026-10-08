@@ -85,11 +85,13 @@ ITENS = [
     ("Agua",                "Bebidas",   4.00, None),
 ]
 
-# (nome, taxa_percentual)
+NOME_DA_LOJA = "Loja principal"
+
+# (nome, taxa_percentual do canal de venda na loja, entrega)
 PLATAFORMAS = [
-    ("Balcao",   0.00),
-    ("iFood",   12.00),
-    ("AnotaAi", 10.00),
+    ("Balcao",   0.00, False),
+    ("iFood",   12.00, True),
+    ("AnotaAi", 10.00, True),
 ]
 
 # (nome, taxa_percentual)
@@ -167,8 +169,20 @@ def popular_banco():
         cursor.execute("DELETE FROM usuarios")
         cursor.execute("DELETE FROM cardapio")
         cursor.execute("DELETE FROM categorias")
+        cursor.execute("DELETE FROM canal_de_venda")
         cursor.execute("DELETE FROM plataforma")
         cursor.execute("DELETE FROM forma_de_pagamento")
+
+        # --- Loja ---
+        print("Garantindo a loja...")
+        cursor.execute("SELECT id FROM loja WHERE nome = %s", (NOME_DA_LOJA,))
+        loja_existente = cursor.fetchone()
+        if loja_existente:
+            id_da_loja = loja_existente[0]
+            cursor.execute("UPDATE loja SET ativo = %s WHERE id = %s", (True, id_da_loja))
+        else:
+            cursor.execute("INSERT INTO loja (nome, ativo) VALUES (%s, %s)", (NOME_DA_LOJA, True))
+            id_da_loja = cursor.lastrowid
 
         # --- Categorias ---
         print("Inserindo categorias...")
@@ -189,25 +203,33 @@ def popular_banco():
             ids_dos_itens[nome_item] = cursor.lastrowid
             precos_dos_itens[nome_item] = preco
 
-        # --- Plataformas ---
-        print("Inserindo plataformas...")
+        # --- Plataformas e o canal de venda de cada uma na loja ---
+        print("Inserindo plataformas e canais de venda...")
         ids_plataformas = {}
-        for nome_plataforma, taxa in PLATAFORMAS:
+        taxas_das_plataformas = {}
+        for nome_plataforma, taxa, entrega in PLATAFORMAS:
             cursor.execute(
-                "INSERT INTO plataforma (nome, taxa_percentual) VALUES (%s, %s)",
-                (nome_plataforma, taxa)
+                "INSERT INTO plataforma (nome, entrega) VALUES (%s, %s)",
+                (nome_plataforma, entrega)
             )
             ids_plataformas[nome_plataforma] = cursor.lastrowid
+            taxas_das_plataformas[nome_plataforma] = taxa
+            cursor.execute(
+                "INSERT INTO canal_de_venda (loja_id, plataforma_id, merchant_id, taxa_percentual, ativo) VALUES (%s, %s, %s, %s, %s)",
+                (id_da_loja, ids_plataformas[nome_plataforma], None, taxa, True)
+            )
 
         # --- Formas de pagamento ---
         print("Inserindo formas de pagamento...")
         ids_formas_de_pagamento = {}
+        taxas_das_formas_de_pagamento = {}
         for nome_forma, taxa in FORMAS_DE_PAGAMENTO:
             cursor.execute(
                 "INSERT INTO forma_de_pagamento (nome, taxa_percentual) VALUES (%s, %s)",
                 (nome_forma, taxa)
             )
             ids_formas_de_pagamento[nome_forma] = cursor.lastrowid
+            taxas_das_formas_de_pagamento[nome_forma] = taxa
 
         # --- Usuarios ---
         print("Inserindo usuarios (gerando hashes BCrypt, pode demorar alguns segundos)...")
@@ -224,13 +246,18 @@ def popular_banco():
             valor_total = calcular_valor_pedido(itens_do_pedido, precos_dos_itens)
 
             cursor.execute(
-                "INSERT INTO pedidos (plataforma_id, nome_cliente, horario_pedido, forma_de_pagamento_id, valor) VALUES (%s, %s, %s, %s, %s)",
+                "INSERT INTO pedidos (loja_id, plataforma_id, nome_cliente, horario_pedido, status, forma_de_pagamento_id, valor, taxa_plataforma_percentual, taxa_pagamento_percentual, fechado) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (
+                    id_da_loja,
                     ids_plataformas[plataforma],
                     nome_cliente,
                     horario,
+                    "CONCLUIDO",
                     ids_formas_de_pagamento[forma_pagamento],
                     valor_total,
+                    taxas_das_plataformas[plataforma],
+                    taxas_das_formas_de_pagamento[forma_pagamento],
+                    False,
                 )
             )
             id_do_pedido = cursor.lastrowid

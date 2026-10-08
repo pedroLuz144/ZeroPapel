@@ -1,0 +1,24 @@
+meta {
+  name: Adicionar Canal de Venda
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/canaisDeVenda
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "lojaId": 1,
+    "plataformaId": 2,
+    "taxaPercentual": 12.00,
+    "merchantId": "merchant-id-de-exemplo"
+  }
+}
