@@ -1,6 +1,7 @@
 package com.goldenpetiscaria.zeropapel.pedido.entity;
 
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
+import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import jakarta.persistence.*;
@@ -27,6 +28,10 @@ public class Pedido {
     private Long id;
 
     @ManyToOne
+    @JoinColumn(name = "loja_id", nullable = false)
+    private Loja loja;
+
+    @ManyToOne
     @JoinColumn(name = "plataforma_id", nullable = false)
     private Plataforma plataforma;
 
@@ -35,9 +40,6 @@ public class Pedido {
     @Column(name = "horario_pedido", nullable = false)
     private LocalDateTime horarioPedido;
 
-    // @JdbcTypeCode força VARCHAR (evita o tipo enum() nativo do MariaDB, que o
-    // ddl-auto=update nunca sincroniza ao adicionar valores ao enum).
-    // @ColumnDefault preenche os pedidos já existentes na migração como CONCLUIDO.
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)

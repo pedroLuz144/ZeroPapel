@@ -8,6 +8,8 @@ import java.util.List;
 
 public record PedidoResponseDTO(
         Long id,
+        Long lojaId,
+        String lojaNome,
         Long plataformaId,
         String plataformaNome,
         String nomeCliente,

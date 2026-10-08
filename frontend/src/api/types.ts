@@ -109,22 +109,63 @@ export interface AtualizarTaxaRequest {
 
 export type FormaDePagamentoResponse = TaxaResponse
 
-// ── Plataforma (forma de taxa + flag de canal de entrega) ─
-export interface PlataformaResponse extends TaxaResponse {
+// ── Plataforma (tipo de canal; a taxa fica no canal de venda) ─
+export interface PlataformaResponse {
+  id: number
+  nome: string
   /** true = canal de entrega (iFood, AnotaAi); false = balcão. */
   entrega: boolean
 }
 
 export interface AdicionarPlataformaRequest {
   nome: string
-  taxaPercentual: number
   entrega: boolean
 }
 
 export interface AtualizarPlataformaRequest {
   nome?: string
-  taxaPercentual?: number
   entrega?: boolean
+}
+
+// ── Loja ──────────────────────────────────────────────────
+export interface LojaResponse {
+  id: number
+  nome: string
+  ativo: boolean
+}
+
+export interface AdicionarLojaRequest {
+  nome: string
+}
+
+export interface AtualizarLojaRequest {
+  nome?: string
+  ativo?: boolean
+}
+
+// ── Canal de venda (loja × plataforma) ────────────────────
+export interface CanalDeVendaResponse {
+  id: number
+  lojaId: number
+  lojaNome: string
+  plataformaId: number
+  plataformaNome: string
+  merchantId: string | null
+  taxaPercentual: number
+  ativo: boolean
+}
+
+export interface AdicionarCanalDeVendaRequest {
+  lojaId: number
+  plataformaId: number
+  taxaPercentual: number
+  merchantId?: string | null
+}
+
+export interface AtualizarCanalDeVendaRequest {
+  taxaPercentual?: number
+  merchantId?: string
+  ativo?: boolean
 }
 
 // ── Pedido ────────────────────────────────────────────────
@@ -134,6 +175,7 @@ export interface ItemPedidoRequest {
 }
 
 export interface AdicionarPedidoRequest {
+  lojaId: number
   plataformaId: number
   nomeCliente: string | null
   formaDePagamentoId: number
@@ -157,6 +199,8 @@ export interface ItemPedidoResponse {
 
 export interface PedidoResponse {
   id: number
+  lojaId: number
+  lojaNome: string
   plataformaId: number
   plataformaNome: string
   nomeCliente: string | null
@@ -214,7 +258,7 @@ export interface PedidosPorHora {
 }
 
 export interface FechamentoResponse {
-  id: number
+  id: number | null
   de: string
   ate: string
   resumo: ResumoFechamento

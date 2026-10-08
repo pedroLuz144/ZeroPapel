@@ -1,5 +1,7 @@
 package com.goldenpetiscaria.zeropapel.pedido.service;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
+import com.goldenpetiscaria.zeropapel.canaldevenda.service.CanalDeVendaService;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
@@ -11,13 +13,11 @@ import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
-import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
-import com.goldenpetiscaria.zeropapel.plataforma.repository.PlataformaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,16 +32,16 @@ public class PedidoServiceImpl implements PedidoService {
     private static final int LIMITE_DE_DIAS_DO_PAINEL = 31;
 
     private final PedidoRepository pedidoRepository;
-    private final PlataformaRepository plataformaRepository;
+    private final CanalDeVendaService canalDeVendaService;
     private final FormaDePagamentoRepository formaDePagamentoRepository;
     private final ItemRepository itemRepository;
 
     public PedidoServiceImpl(PedidoRepository pedidoRepository,
-                             PlataformaRepository plataformaRepository,
+                             CanalDeVendaService canalDeVendaService,
                              FormaDePagamentoRepository formaDePagamentoRepository,
                              ItemRepository itemRepository) {
         this.pedidoRepository = pedidoRepository;
-        this.plataformaRepository = plataformaRepository;
+        this.canalDeVendaService = canalDeVendaService;
         this.formaDePagamentoRepository = formaDePagamentoRepository;
         this.itemRepository = itemRepository;
     }
@@ -49,15 +49,15 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional
     public PedidoResponseDTO registrarPedido(AdicionarPedidoRequest request) {
-        Plataforma plataforma = plataformaRepository.findById(request.plataformaId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(request.lojaId(), request.plataformaId());
 
         FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
 
         Pedido pedido = new Pedido();
-        pedido.setPlataforma(plataforma);
-        pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
+        pedido.setLoja(canal.getLoja());
+        pedido.setPlataforma(canal.getPlataforma());
+        pedido.setTaxaPlataformaPercentual(canal.getTaxaPercentual());
         pedido.setFormaDePagamento(formaDePagamento);
         pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         pedido.setNomeCliente(request.nomeCliente());
@@ -95,14 +95,16 @@ public class PedidoServiceImpl implements PedidoService {
     public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
         Pedido pedido = buscarAlteravel(id);
 
-        if (request.plataformaId() != null) {
-            Plataforma plataforma = plataformaRepository.findById(request.plataformaId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
-            pedido.setPlataforma(plataforma);
-            pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
+        if (request.plataformaId() != null
+                && !request.plataformaId().equals(pedido.getPlataforma().getId())) {
+            CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(
+                    pedido.getLoja().getId(), request.plataformaId());
+            pedido.setPlataforma(canal.getPlataforma());
+            pedido.setTaxaPlataformaPercentual(canal.getTaxaPercentual());
         }
 
-        if (request.formaDePagamentoId() != null) {
+        if (request.formaDePagamentoId() != null
+                && !request.formaDePagamentoId().equals(pedido.getFormaDePagamento().getId())) {
             FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
             pedido.setFormaDePagamento(formaDePagamento);
@@ -187,6 +189,8 @@ public class PedidoServiceImpl implements PedidoService {
 
         return new PedidoResponseDTO(
                 pedido.getId(),
+                pedido.getLoja().getId(),
+                pedido.getLoja().getNome(),
                 pedido.getPlataforma().getId(),
                 pedido.getPlataforma().getNome(),
                 pedido.getNomeCliente(),

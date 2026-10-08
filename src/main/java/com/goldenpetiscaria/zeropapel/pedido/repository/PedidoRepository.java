@@ -16,6 +16,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     boolean existsByFormaDePagamentoId(Long formaDePagamentoId);
 
     @Query("SELECT DISTINCT p FROM Pedido p " +
+           "JOIN FETCH p.loja " +
            "JOIN FETCH p.plataforma " +
            "JOIN FETCH p.formaDePagamento " +
            "LEFT JOIN FETCH p.itens ip " +
@@ -25,6 +26,7 @@ public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     List<Pedido> findFaturaveisDoPeriodoComItens(@Param("de") LocalDateTime de, @Param("ate") LocalDateTime ate);
 
     @Query("SELECT DISTINCT p FROM Pedido p " +
+           "JOIN FETCH p.loja " +
            "JOIN FETCH p.plataforma " +
            "JOIN FETCH p.formaDePagamento " +
            "LEFT JOIN FETCH p.itens ip " +

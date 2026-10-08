@@ -5,7 +5,6 @@ import BaseField from '@/components/BaseField.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import { plataformasApi } from '@/api'
 import type { PlataformaResponse } from '@/api/types'
-import { percentual } from '@/utils/formato'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 
@@ -20,7 +19,7 @@ const modalAberto = ref(false)
 const editando = ref<PlataformaResponse | null>(null)
 const erroModal = ref('')
 const salvando = ref(false)
-const form = reactive({ nome: '', taxaPercentual: '', entrega: true })
+const form = reactive({ nome: '', entrega: true })
 
 const contagem = computed(() => {
   const n = registros.value.length
@@ -44,7 +43,6 @@ function abrir(registro?: PlataformaResponse): void {
   editando.value = registro ?? null
   Object.assign(form, {
     nome: registro?.nome ?? '',
-    taxaPercentual: registro ? String(registro.taxaPercentual) : '',
     entrega: registro ? registro.entrega : true,
   })
   erroModal.value = ''
@@ -52,20 +50,15 @@ function abrir(registro?: PlataformaResponse): void {
 }
 
 async function salvar(): Promise<void> {
-  const taxa = Number.parseFloat(form.taxaPercentual)
-  if (!form.nome.trim() || !Number.isFinite(taxa)) {
-    erroModal.value = 'Preencha o nome e a taxa percentual.'
-    return
-  }
-  if (taxa < 0) {
-    erroModal.value = 'A taxa não pode ser negativa.'
+  if (!form.nome.trim()) {
+    erroModal.value = 'Preencha o nome.'
     return
   }
 
   salvando.value = true
   erroModal.value = ''
   try {
-    const body = { nome: form.nome.trim(), taxaPercentual: taxa, entrega: form.entrega }
+    const body = { nome: form.nome.trim(), entrega: form.entrega }
     if (editando.value) {
       await plataformasApi.atualizar(editando.value.id, body)
       toast.sucesso('Plataforma atualizada.')
@@ -83,10 +76,13 @@ async function salvar(): Promise<void> {
 }
 
 async function excluir(registro: PlataformaResponse): Promise<void> {
-  const ok = await confirmar(`Excluir a plataforma "${registro.nome}"?`, {
-    titulo: 'Excluir',
-    rotuloConfirmar: 'Excluir',
-  })
+  const ok = await confirmar(
+    `Excluir a plataforma "${registro.nome}"? Os canais de venda dela (taxa e merchant ID de cada loja) são excluídos junto.`,
+    {
+      titulo: 'Excluir',
+      rotuloConfirmar: 'Excluir',
+    },
+  )
   if (!ok) return
   try {
     await plataformasApi.excluir(registro.id)
@@ -111,7 +107,8 @@ async function excluir(registro: PlataformaResponse): Promise<void> {
 
     <p class="ajuda">
       Marque "Canal de entrega" para iFood, Anota Aí e similares (têm etapa <em>Em rota</em>).
-      Deixe desmarcado no <strong>Balcão</strong> — é a plataforma que o PDV usa.
+      Deixe desmarcado no <strong>Balcão</strong> — é a plataforma que o PDV usa. A taxa de cada
+      plataforma é definida por loja, na aba <strong>Canais de venda</strong>.
     </p>
 
     <div class="tabela-scroll">
@@ -120,13 +117,12 @@ async function excluir(registro: PlataformaResponse): Promise<void> {
           <tr>
             <th>Nome</th>
             <th>Tipo</th>
-            <th class="num">Taxa</th>
             <th aria-label="ações"></th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="registros.length === 0 && !erro">
-            <td colspan="4" class="tabela__vazio">Nenhuma plataforma cadastrada.</td>
+            <td colspan="3" class="tabela__vazio">Nenhuma plataforma cadastrada.</td>
           </tr>
           <tr v-for="r in registros" :key="r.id">
             <td>{{ r.nome }}</td>
@@ -135,7 +131,6 @@ async function excluir(registro: PlataformaResponse): Promise<void> {
                 {{ r.entrega ? 'Entrega' : 'Balcão' }}
               </span>
             </td>
-            <td class="num">{{ percentual(r.taxaPercentual) }}</td>
             <td class="num">
               <button class="link-acao" @click="abrir(r)">Editar</button>
               <button class="link-acao link-acao--perigo" @click="excluir(r)">Excluir</button>
@@ -156,15 +151,6 @@ async function excluir(registro: PlataformaResponse): Promise<void> {
     <div class="pilha">
       <BaseField rotulo="Nome" obrigatorio>
         <input v-model="form.nome" type="text" placeholder="Ex: iFood" />
-      </BaseField>
-      <BaseField rotulo="Taxa percentual (%)" obrigatorio>
-        <input
-          v-model="form.taxaPercentual"
-          type="number"
-          step="0.01"
-          min="0"
-          placeholder="Ex: 12.00"
-        />
       </BaseField>
       <label class="check">
         <input v-model="form.entrega" type="checkbox" class="check__box" />
