@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 @Entity
 @Table(name = "plataforma")
 @Getter
@@ -21,14 +19,6 @@ public class Plataforma {
     @Column(nullable = false, unique = true)
     private String nome;
 
-    @Column(nullable = false)
-    private BigDecimal taxaPercentual;
-
-    /**
-     * Canal de entrega (iFood, AnotaAi) x balcão. Delivery tem etapa EM_ROTA;
-     * o PDV cria pedidos na plataforma de balcão (entrega = false).
-     * columnDefinition preenche as linhas existentes na migração (ddl-auto=update).
-     */
     @Column(nullable = false, columnDefinition = "boolean default true")
     private boolean entrega = true;
 }

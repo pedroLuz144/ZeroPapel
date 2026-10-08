@@ -32,7 +32,6 @@ public class PlataformaServiceImpl implements PlataformaService {
         }
         Plataforma plataforma = new Plataforma();
         plataforma.setNome(request.nome());
-        plataforma.setTaxaPercentual(request.taxaPercentual());
         plataforma.setEntrega(request.entrega() == null || request.entrega());
         return toDTO(plataformaRepository.save(plataforma));
     }
@@ -48,17 +47,13 @@ public class PlataformaServiceImpl implements PlataformaService {
 
     @Override
     public PlataformaResponseDTO atualizarPlataforma(Long id, AtualizarPlataformaRequest request) {
-        Plataforma plataforma = plataformaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+        Plataforma plataforma = buscarEntidadePorId(id);
         if (request.nome() != null) {
             Optional<Plataforma> existente = plataformaRepository.findByNome(request.nome());
             if (existente.isPresent() && !existente.get().getId().equals(id)) {
                 throw new ConflitoException("Já existe uma plataforma com o nome: " + request.nome());
             }
             plataforma.setNome(request.nome());
-        }
-        if (request.taxaPercentual() != null) {
-            plataforma.setTaxaPercentual(request.taxaPercentual());
         }
         if (request.entrega() != null) {
             plataforma.setEntrega(request.entrega());
@@ -68,19 +63,23 @@ public class PlataformaServiceImpl implements PlataformaService {
 
     @Override
     public void excluirPlataforma(Long id) {
-        Plataforma plataforma = plataformaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+        Plataforma plataforma = buscarEntidadePorId(id);
         if (pedidoRepository.existsByPlataformaId(id)) {
             throw new ConflitoException("Não é possível excluir a plataforma pois existem pedidos vinculados a ela");
         }
         plataformaRepository.delete(plataforma);
     }
 
+    @Override
+    public Plataforma buscarEntidadePorId(Long id) {
+        return plataformaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+    }
+
     private PlataformaResponseDTO toDTO(Plataforma plataforma) {
         return new PlataformaResponseDTO(
                 plataforma.getId(),
                 plataforma.getNome(),
-                plataforma.getTaxaPercentual(),
                 plataforma.isEntrega()
         );
     }

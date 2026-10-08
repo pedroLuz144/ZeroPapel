@@ -1,17 +1,35 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import BaseField from '@/components/BaseField.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import CarrinhoEditor from '@/components/CarrinhoEditor.vue'
-import { formasPagamentoApi, itensApi, pedidosApi, plataformasApi } from '@/api'
-import type { ItemResponse, PlataformaResponse, TaxaResponse } from '@/api/types'
+import {
+  canaisDeVendaApi,
+  formasPagamentoApi,
+  itensApi,
+  lojasApi,
+  pedidosApi,
+  plataformasApi,
+} from '@/api'
+import type {
+  CanalDeVendaResponse,
+  ItemResponse,
+  LojaResponse,
+  PlataformaResponse,
+  TaxaResponse,
+} from '@/api/types'
 import type { LinhaCarrinho } from '@/types'
 import { moeda } from '@/utils/formato'
 import { useToast } from '@/composables/useToast'
 
 const toast = useToast()
 
+const CHAVE_LOJA = 'zeropapel.pdv.loja'
+
+const lojas = ref<LojaResponse[]>([])
+const lojaId = ref<number | null>(null)
 const plataformas = ref<PlataformaResponse[]>([])
+const canais = ref<CanalDeVendaResponse[]>([])
 const formasPagamento = ref<TaxaResponse[]>([])
 const itens = ref<ItemResponse[]>([])
 
@@ -32,23 +50,62 @@ const plataformaBalcao = computed<PlataformaResponse | null>(() => {
   return plataformas.value.find((p) => /balc[aã]o/i.test(p.nome)) ?? null
 })
 
+const lojasAtivas = computed(() => lojas.value.filter((l) => l.ativo))
+
+const semLojaAtiva = computed(() => lojasAtivas.value.length === 0)
+
+const lojaSemCanalDeBalcao = computed(() => {
+  const balcao = plataformaBalcao.value
+  const loja = lojaId.value
+  if (!balcao || loja == null) return false
+  return !canais.value.some((c) => c.ativo && c.lojaId === loja && c.plataformaId === balcao.id)
+})
+
+function lojaLembrada(): number | null {
+  try {
+    const id = Number(localStorage.getItem(CHAVE_LOJA))
+    return lojasAtivas.value.some((l) => l.id === id) ? id : null
+  } catch {
+    return null
+  }
+}
+
+function escolherLojaInicial(): void {
+  const unica = lojasAtivas.value.length === 1 ? lojasAtivas.value[0] : undefined
+  lojaId.value = unica ? unica.id : lojaLembrada()
+}
+
+watch(lojaId, (id) => {
+  if (id == null) return
+  try {
+    localStorage.setItem(CHAVE_LOJA, String(id))
+  } catch {
+    return
+  }
+})
+
 const total = computed(() =>
   carrinho.value.reduce((soma, l) => soma + l.preco * l.quantidade, 0),
 )
 
 onMounted(async () => {
   try {
-    const [p, f, i] = await Promise.all([
+    const [l, p, c, f, i] = await Promise.all([
+      lojasApi.listar(),
       plataformasApi.listar(),
+      canaisDeVendaApi.listar(),
       formasPagamentoApi.listar(),
       itensApi.listar(),
     ])
+    lojas.value = l
     plataformas.value = p
+    canais.value = c
     formasPagamento.value = f
     itens.value = i
+    escolherLojaInicial()
   } catch {
     erroCarregamento.value =
-      'Não foi possível carregar plataformas, formas de pagamento ou o cardápio.'
+      'Não foi possível carregar lojas, plataformas, canais de venda, formas de pagamento ou o cardápio.'
   } finally {
     carregando.value = false
   }
@@ -58,6 +115,10 @@ async function registrar(): Promise<void> {
   const plataforma = plataformaBalcao.value
   if (!plataforma) {
     toast.erro('Nenhuma plataforma de balcão configurada.')
+    return
+  }
+  if (lojaId.value == null) {
+    toast.erro('Selecione a loja.')
     return
   }
   if (formaDePagamentoId.value == null) {
@@ -72,6 +133,7 @@ async function registrar(): Promise<void> {
   salvando.value = true
   try {
     const pedido = await pedidosApi.registrar({
+      lojaId: lojaId.value,
       plataformaId: plataforma.id,
       nomeCliente: nomeCliente.value.trim() || null,
       formaDePagamentoId: formaDePagamentoId.value,
@@ -103,9 +165,33 @@ async function registrar(): Promise<void> {
       (ou edite a existente) deixando "Canal de entrega" desmarcado.
     </div>
 
+    <div
+      v-else-if="semLojaAtiva"
+      class="alerta-erro"
+      style="grid-column: 1 / -1"
+    >
+      Nenhuma loja ativa. Em Configurações → Lojas, ative ou cadastre uma.
+    </div>
+
+    <div
+      v-else-if="lojaSemCanalDeBalcao"
+      class="alerta-erro"
+      style="grid-column: 1 / -1"
+    >
+      Esta loja não tem canal de balcão ativo. Em Configurações → Canais de venda, cadastre ou
+      reative o canal de {{ plataformaBalcao.nome }} desta loja.
+    </div>
+
     <section class="painel">
       <h2 class="painel__titulo">Dados do pedido</h2>
       <div class="pilha">
+        <BaseField v-if="lojasAtivas.length > 1" rotulo="Loja" obrigatorio>
+          <select v-model.number="lojaId">
+            <option :value="null">Selecione…</option>
+            <option v-for="l in lojasAtivas" :key="l.id" :value="l.id">{{ l.nome }}</option>
+          </select>
+        </BaseField>
+
         <BaseField rotulo="Plataforma">
           <input :value="plataformaBalcao?.nome ?? 'Balcão'" type="text" disabled />
         </BaseField>
@@ -132,7 +218,11 @@ async function registrar(): Promise<void> {
     </section>
 
     <div class="pdv__rodape">
-      <BaseButton :carregando="salvando" :desabilitado="!plataformaBalcao" @click="registrar">
+      <BaseButton
+        :carregando="salvando"
+        :desabilitado="!plataformaBalcao || semLojaAtiva || lojaSemCanalDeBalcao"
+        @click="registrar"
+      >
         {{ salvando ? 'Registrando…' : 'Registrar pedido' }}
       </BaseButton>
     </div>

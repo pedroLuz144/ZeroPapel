@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.fechamentodecaixa.service;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.request.RealizarFechamentoRequest;
@@ -58,9 +59,9 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("taxa da plataforma arredonda para cima no empate de meio centavo")
         void calcularPrevia_arredondaTaxaDaPlataformaParaCima_quandoCaiEmMeioCentavo() {
-            Plataforma plataforma = plataforma("iFood", "15.00");
+            CanalDeVenda ifood = canal("iFood", "15.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
-            darPedidos(pedido("4.10", plataforma, dinheiro, 19));
+            darPedidos(pedido("4.10", ifood, dinheiro, 19));
 
             FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
 
@@ -71,7 +72,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("taxa da forma de pagamento arredonda para cima no empate de meio centavo")
         void calcularPrevia_arredondaTaxaDoPagamentoParaCima_quandoCaiEmMeioCentavo() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento credito = formaDePagamento("Credito", "22.50");
             darPedidos(pedido("8.20", balcao, credito, 20));
 
@@ -84,7 +85,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("ticket medio arredonda para cima no empate de meio centavo")
         void calcularPrevia_arredondaTicketMedioParaCima_quandoCaiEmMeioCentavo() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             darPedidos(
                     pedido("16.00", balcao, dinheiro, 19),
@@ -117,7 +118,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("mudar a taxa da plataforma depois da venda nao mexe no fechamento")
         void calcularPrevia_usaATaxaCongelada_quandoATaxaDaPlataformaMudaDepoisDaVenda() {
-            Plataforma ifood = plataforma("iFood", "10.00");
+            CanalDeVenda ifood = canal("iFood", "10.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             Pedido pedido = pedido("200.00", ifood, dinheiro, 20);
             ifood.setTaxaPercentual(new BigDecimal("14.00"));
@@ -132,7 +133,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("mudar a taxa do cartao depois da venda nao mexe no fechamento")
         void calcularPrevia_usaATaxaCongelada_quandoATaxaDoPagamentoMudaDepoisDaVenda() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento credito = formaDePagamento("Credito", "3.00");
             Pedido pedido = pedido("100.00", balcao, credito, 20);
             credito.setTaxaPercentual(new BigDecimal("4.50"));
@@ -146,7 +147,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_descontaAsDuasTaxasDoFaturamentoLiquido() {
-            Plataforma ifood = plataforma("iFood", "12.00");
+            CanalDeVenda ifood = canal("iFood", "12.00");
             FormaDePagamento credito = formaDePagamento("Credito", "3.00");
             darPedidos(pedido("100.00", ifood, credito, 20));
 
@@ -164,7 +165,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("receita do item sai com duas casas, sem ruido de ponto flutuante")
         void calcularPrevia_retornaReceitaComDuasCasas_quandoPrecoGeraDizimaEmBinario() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             Item batata = item(1L, "Batata Frita", "41.99");
             Pedido pedido = pedido("209.95", balcao, dinheiro, 20);
@@ -180,7 +181,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_agregaOMesmoItemDePedidosDiferentes() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             Item cerveja = item(2L, "Cerveja", "9.00");
 
@@ -199,7 +200,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_ordenaRankingPelaQuantidadeDecrescente() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             Item porcao = item(1L, "Porcao", "30.00");
             Item refrigerante = item(2L, "Refrigerante", "7.00");
@@ -220,8 +221,8 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_agrupaPorPlataformaOrdenandoPeloBrutoDecrescente() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
-            Plataforma ifood = plataforma("iFood", "10.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
+            CanalDeVenda ifood = canal("iFood", "10.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             darPedidos(
                     pedido("50.00", balcao, dinheiro, 19),
@@ -238,7 +239,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_agrupaPorFormaDePagamento() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             FormaDePagamento credito = formaDePagamento("Credito", "3.00");
             darPedidos(
@@ -255,7 +256,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void calcularPrevia_agrupaCurvaHorariaOrdenandoPelaHoraCrescente() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             darPedidos(
                     pedido("10.00", balcao, dinheiro, 21),
@@ -301,7 +302,7 @@ class FechamentoServiceImplTest {
 
         @Test
         void realizarFechamento_persisteOsTotaisCalculados() {
-            Plataforma ifood = plataforma("iFood", "10.00");
+            CanalDeVenda ifood = canal("iFood", "10.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             when(fechamentoRepository.countByPeriodoSobreposto(DE, ATE)).thenReturn(0L);
             darPedidos(pedido("200.00", ifood, dinheiro, 20));
@@ -331,7 +332,7 @@ class FechamentoServiceImplTest {
         @Test
         @DisplayName("fechar o caixa marca os pedidos do periodo como fechados")
         void realizarFechamento_marcaOsPedidosDoPeriodo() {
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             when(fechamentoRepository.countByPeriodoSobreposto(DE, ATE)).thenReturn(0L);
             darPedidos(pedido("50.00", balcao, dinheiro, 20));
@@ -379,7 +380,7 @@ class FechamentoServiceImplTest {
         void buscarFechamentoPorId_usaOResumoCongelado_emVezDeRecalcular() {
             FechamentoCaixa congelado = fechamentoCongelado();
             when(fechamentoRepository.findById(1L)).thenReturn(Optional.of(congelado));
-            Plataforma balcao = plataforma("Balcao", "0.00");
+            CanalDeVenda balcao = canal("Balcao", "0.00");
             FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
             darPedidos(pedido("10.00", balcao, dinheiro, 20));
 
@@ -413,11 +414,11 @@ class FechamentoServiceImplTest {
         when(pedidoRepository.findFaturaveisDoPeriodoComItens(DE, ATE)).thenReturn(List.of(pedidos));
     }
 
-    private Pedido pedido(String valor, Plataforma plataforma, FormaDePagamento formaDePagamento, int hora) {
+    private Pedido pedido(String valor, CanalDeVenda canal, FormaDePagamento formaDePagamento, int hora) {
         Pedido pedido = new Pedido();
         pedido.setValor(new BigDecimal(valor));
-        pedido.setPlataforma(plataforma);
-        pedido.setTaxaPlataformaPercentual(plataforma.getTaxaPercentual());
+        pedido.setPlataforma(canal.getPlataforma());
+        pedido.setTaxaPlataformaPercentual(canal.getTaxaPercentual());
         pedido.setFormaDePagamento(formaDePagamento);
         pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         pedido.setHorarioPedido(LocalDateTime.of(2026, 10, 6, hora, 30));
@@ -441,11 +442,13 @@ class FechamentoServiceImplTest {
         return item;
     }
 
-    private Plataforma plataforma(String nome, String taxaPercentual) {
+    private CanalDeVenda canal(String nomeDaPlataforma, String taxaPercentual) {
         Plataforma plataforma = new Plataforma();
-        plataforma.setNome(nome);
-        plataforma.setTaxaPercentual(new BigDecimal(taxaPercentual));
-        return plataforma;
+        plataforma.setNome(nomeDaPlataforma);
+        CanalDeVenda canal = new CanalDeVenda();
+        canal.setPlataforma(plataforma);
+        canal.setTaxaPercentual(new BigDecimal(taxaPercentual));
+        return canal;
     }
 
     private FormaDePagamento formaDePagamento(String nome, String taxaPercentual) {

@@ -14,6 +14,8 @@ const PREFIXOS_API = [
   '/fechamento',
   '/dashboard',
   '/usuarios',
+  '/lojas',
+  '/canaisDeVenda',
 ]
 
 export default defineConfig({

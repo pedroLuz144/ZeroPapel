@@ -1,15 +1,20 @@
-import { http } from './http'
+import { http } from '@/api/http'
 import type {
+  AdicionarCanalDeVendaRequest,
   AdicionarItemRequest,
+  AdicionarLojaRequest,
   AdicionarPedidoRequest,
   AdicionarPlataformaRequest,
   AdicionarTaxaRequest,
+  AtualizarCanalDeVendaRequest,
   AtualizarItemRequest,
+  AtualizarLojaRequest,
   AtualizarPedidoRequest,
   AtualizarPlataformaRequest,
   AtualizarTaxaRequest,
   AtualizarUsuarioRequest,
   CadastrarUsuarioRequest,
+  CanalDeVendaResponse,
   CategoriaRequest,
   CategoriaResponse,
   FechamentoCaixaListagem,
@@ -18,14 +23,15 @@ import type {
   ItemResponse,
   LoginRequest,
   LoginResponse,
+  LojaResponse,
   PedidoResponse,
   PlataformaResponse,
   RealizarFechamentoRequest,
   StatusPedido,
   UsuarioResponse,
-} from './types'
+} from '@/api/types'
 
-export { HttpError } from './http'
+export { HttpError } from '@/api/http'
 
 export const authApi = {
   login: (body: LoginRequest) => http.post<LoginResponse>('/auth/login', body),
@@ -52,6 +58,21 @@ export const plataformasApi = {
   atualizar: (id: number, body: AtualizarPlataformaRequest) =>
     http.patch<PlataformaResponse>(`/plataformas/${id}`, body),
   excluir: (id: number) => http.del(`/plataformas/${id}`),
+}
+
+export const lojasApi = {
+  listar: () => http.get<LojaResponse[]>('/lojas'),
+  adicionar: (body: AdicionarLojaRequest) => http.post<LojaResponse>('/lojas', body),
+  atualizar: (id: number, body: AtualizarLojaRequest) => http.patch<LojaResponse>(`/lojas/${id}`, body),
+}
+
+export const canaisDeVendaApi = {
+  listar: () => http.get<CanalDeVendaResponse[]>('/canaisDeVenda'),
+  adicionar: (body: AdicionarCanalDeVendaRequest) =>
+    http.post<CanalDeVendaResponse>('/canaisDeVenda', body),
+  atualizar: (id: number, body: AtualizarCanalDeVendaRequest) =>
+    http.patch<CanalDeVendaResponse>(`/canaisDeVenda/${id}`, body),
+  excluir: (id: number) => http.del(`/canaisDeVenda/${id}`),
 }
 
 export const formasPagamentoApi = {
