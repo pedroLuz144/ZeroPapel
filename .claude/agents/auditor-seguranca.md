@@ -22,7 +22,7 @@ Calibre por isso — não reporte ameaça de banco multinacional, e não descart
 | Login / refresh / logout | `autenticacao/` |
 | Autorização por endpoint | todos os `*Controller.java` |
 | Vazamento em resposta | todos os `*ResponseDTO.java` e `GlobalExceptionHandler` |
-| Segredos e config | `application.properties`, `envExample`, `.gitignore` |
+| Segredos e config | `application.properties`, `.env.example`, `.gitignore` |
 | Sessão no cliente | `frontend/src/stores/auth.ts`, `frontend/src/api/http.ts` |
 
 ## O que verificar
