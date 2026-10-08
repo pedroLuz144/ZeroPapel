@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import BaseField from './BaseField.vue'
-import BaseButton from './BaseButton.vue'
+import BaseField from '@/components/BaseField.vue'
+import BaseButton from '@/components/BaseButton.vue'
 import type { ItemResponse } from '@/api/types'
 import type { LinhaCarrinho } from '@/types'
 import { moeda } from '@/utils/formato'
@@ -26,7 +26,7 @@ function adicionar(): void {
     erro.value = 'Selecione um item.'
     return
   }
-  if (!Number.isFinite(quantidade.value) || quantidade.value < 1) {
+  if (!Number.isInteger(quantidade.value) || quantidade.value < 1) {
     erro.value = 'Quantidade inválida.'
     return
   }
