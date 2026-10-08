@@ -39,18 +39,26 @@ produção roda um único artefato `.jar`.
 
 ### 1. Configurar o ambiente
 
-Copie `envExample` para `.env` na raiz e preencha:
+Copie `.env.example` para `.env` na raiz e preencha:
 
 ```bash
-cp envExample .env
+cp .env.example .env
 ```
+
+A aplicação lê o `.env` da raiz sozinha na subida, sem precisar exportar nada no terminal.
+Variável de ambiente real, quando existe, tem precedência sobre o arquivo.
 
 O `JWT_SECRET` precisa ser **base64 de no mínimo 32 bytes** — abaixo disso a aplicação não
 sobe, por decisão da biblioteca de JWT. Para gerar um:
 
 ```bash
-openssl rand -base64 32
+openssl rand -base64 64
 ```
+
+O **primeiro gerente** vem de `ADMIN_USUARIO` e `ADMIN_SENHA` (e `ADMIN_NOME`, opcional): na
+subida, se a tabela de usuários estiver vazia, a aplicação cria um usuário `GERENTE` com esse
+login e senha. Não existe senha padrão — sem as duas variáveis ninguém é criado e o log avisa.
+Com qualquer usuário já cadastrado elas são ignoradas. Troque a senha depois do primeiro login.
 
 ### 2. Subir a API
 
@@ -81,7 +89,10 @@ java -jar target/ZeroPapel-0.0.1-SNAPSHOT.jar
 
 O build da SPA precisa vir antes do `package` — é o que embute a interface no `.jar`.
 
-### Popular com dados de teste
+### Popular com dados de demonstração
+
+Opcional. O script não é necessário para ter o primeiro acesso (isso é papel de
+`ADMIN_USUARIO`/`ADMIN_SENHA`, acima); ele só enche o banco com dados de exemplo.
 
 ```bash
 pip install -r scripts/requirements.txt
@@ -94,7 +105,7 @@ na falta dela, é gerada aleatoriamente e impressa no fim. Nenhuma senha fica no
 ## Testes
 
 ```bash
-./mvnw test                                  # 46 testes
+./mvnw test                                  # 121 testes
 ./mvnw test -Dtest=FechamentoServiceImplTest # uma classe
 cd frontend && npm run test:run              # Vitest
 cd frontend && npm run type-check            # tipos
