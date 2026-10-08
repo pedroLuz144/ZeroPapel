@@ -4,8 +4,9 @@ import BaseButton from '@/components/BaseButton.vue'
 import BaseField from '@/components/BaseField.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import CarrinhoEditor from '@/components/CarrinhoEditor.vue'
-import { formasPagamentoApi, itensApi, pedidosApi, plataformasApi } from '@/api'
+import { canaisDeVendaApi, formasPagamentoApi, itensApi, pedidosApi, plataformasApi } from '@/api'
 import type {
+  CanalDeVendaResponse,
   ItemResponse,
   PedidoResponse,
   PlataformaResponse,
@@ -41,6 +42,10 @@ const STATUS_LABEL: Record<StatusPedido, string> = {
   CANCELADO: 'Cancelado',
 }
 
+function ehStatusPedido(valor: string): valor is StatusPedido {
+  return STATUS_TODOS.some((s) => s === valor)
+}
+
 function proximo(s: StatusPedido, ehEntrega: boolean): StatusPedido | null {
   const i = STATUS_ATIVOS.indexOf(s)
   if (i < 0 || i >= STATUS_ATIVOS.length - 1) return null
@@ -59,6 +64,7 @@ function corDot(s: StatusPedido): string {
 // ── Estado ────────────────────────────────────────────────
 const pedidos = ref<PedidoResponse[]>([])
 const plataformas = ref<PlataformaResponse[]>([])
+const canais = ref<CanalDeVendaResponse[]>([])
 const formasPagamento = ref<TaxaResponse[]>([])
 const itens = ref<ItemResponse[]>([])
 
@@ -74,11 +80,30 @@ const mostrarCancelados = ref(false)
 const ultimaAtualizacao = ref(Date.now())
 const agora = ref(Date.now())
 let timer: number | undefined
+let timerDeRecarga: number | undefined
+let interacoes = 0
+let acoesEmAndamento = 0
+let ultimaCarga = 0
+
+const INTERVALO_DE_RECARGA_MS = 60000
 
 const detalhe = ref<PedidoResponse | null>(null)
 
 const editando = ref<PedidoResponse | null>(null)
 const formPlataformaId = ref<number | null>(null)
+
+const plataformasDaEdicao = computed<PlataformaResponse[]>(() => {
+  const pedido = editando.value
+  if (!pedido) return []
+  return plataformas.value.filter(
+    (pl) =>
+      pl.id === pedido.plataformaId ||
+      canais.value.some(
+        (c) => c.ativo && c.lojaId === pedido.lojaId && c.plataformaId === pl.id,
+      ),
+  )
+})
+
 const formFormaId = ref<number | null>(null)
 const formNomeCliente = ref('')
 const carrinhoEdicao = ref<LinhaCarrinho[]>([])
@@ -128,27 +153,52 @@ function resumoItens(p: PedidoResponse): string {
 
 // ── Carga ─────────────────────────────────────────────────
 async function carregar(): Promise<void> {
-  erro.value = ''
+  const carga = ++ultimaCarga
+  const interacoesNoInicio = interacoes
   try {
     const hoje = dataLocalISO()
-    pedidos.value = await pedidosApi.listar(`${hoje}T00:00:00`, `${hoje}T23:59:59`)
+    const lista = await pedidosApi.listar(`${hoje}T00:00:00`, `${hoje}T23:59:59`)
+    if (carga !== ultimaCarga || interacoesNoInicio !== interacoes) return
+    pedidos.value = lista
+    erro.value = ''
     ultimaAtualizacao.value = Date.now()
     agora.value = Date.now()
   } catch (e) {
+    if (carga !== ultimaCarga) return
     erro.value = e instanceof Error ? e.message : 'Erro ao carregar os pedidos.'
+  }
+}
+
+function telaOcupada(): boolean {
+  return detalhe.value !== null || editando.value !== null || acoesEmAndamento > 0
+}
+
+function recarregarSozinho(): void {
+  if (!telaOcupada()) carregar()
+}
+
+async function comoAcaoDoUsuario(acao: () => Promise<void>): Promise<void> {
+  interacoes += 1
+  acoesEmAndamento += 1
+  try {
+    await acao()
+  } finally {
+    acoesEmAndamento -= 1
   }
 }
 
 onMounted(async () => {
   try {
-    const [ped, pla, fpg, itn] = await Promise.all([
+    const [ped, pla, can, fpg, itn] = await Promise.all([
       pedidosApi.listar(),
       plataformasApi.listar(),
+      canaisDeVendaApi.listar(),
       formasPagamentoApi.listar(),
       itensApi.listar(),
     ])
     pedidos.value = ped
     plataformas.value = pla
+    canais.value = can
     formasPagamento.value = fpg
     itens.value = itn
     ultimaAtualizacao.value = Date.now()
@@ -158,47 +208,56 @@ onMounted(async () => {
     carregando.value = false
   }
   timer = window.setInterval(() => (agora.value = Date.now()), 10000)
+  timerDeRecarga = window.setInterval(recarregarSozinho, INTERVALO_DE_RECARGA_MS)
 })
 
 onUnmounted(() => {
   if (timer) clearInterval(timer)
+  if (timerDeRecarga) clearInterval(timerDeRecarga)
 })
 
 // ── Status ────────────────────────────────────────────────
 async function mudarStatus(p: PedidoResponse, novo: StatusPedido): Promise<void> {
-  try {
-    const atualizado = await pedidosApi.atualizarStatus(p.id, novo)
-    const i = pedidos.value.findIndex((x) => x.id === p.id)
-    if (i >= 0) pedidos.value[i] = atualizado
-    if (detalhe.value?.id === p.id) detalhe.value = atualizado
-    toast.sucesso(`Pedido #${p.id} → ${STATUS_LABEL[novo]}`)
-  } catch (e) {
-    toast.erro(e instanceof Error ? e.message : 'Erro ao mudar o status.')
-  }
+  await comoAcaoDoUsuario(async () => {
+    try {
+      const atualizado = await pedidosApi.atualizarStatus(p.id, novo)
+      const i = pedidos.value.findIndex((x) => x.id === p.id)
+      if (i >= 0) pedidos.value[i] = atualizado
+      if (detalhe.value?.id === p.id) detalhe.value = atualizado
+      toast.sucesso(`Pedido #${p.id} → ${STATUS_LABEL[novo]}`)
+    } catch (e) {
+      toast.erro(e instanceof Error ? e.message : 'Erro ao mudar o status.')
+    }
+  })
 }
 
 async function avancar(p: PedidoResponse): Promise<void> {
+  if (p.fechado) return
   const prox = proximo(p.status, ehEntrega(p))
   if (prox) await mudarStatus(p, prox)
 }
 
 async function aoEscolherStatus(p: PedidoResponse, evento: Event): Promise<void> {
-  const alvo = evento.target as HTMLSelectElement
-  const novo = alvo.value as StatusPedido
+  const alvo = evento.target
+  if (!(alvo instanceof HTMLSelectElement)) return
+  const novo = alvo.value
   alvo.value = p.status // desfaz visualmente; a fonte da verdade é o dado
-  if (novo === p.status) return
-  if (novo === 'CANCELADO') {
-    const ok = await confirmar(`Cancelar o pedido #${p.id}?`, {
-      titulo: 'Cancelar pedido',
-      rotuloConfirmar: 'Cancelar pedido',
-    })
-    if (!ok) return
-  }
-  await mudarStatus(p, novo)
+  if (p.fechado || !ehStatusPedido(novo) || novo === p.status) return
+  await comoAcaoDoUsuario(async () => {
+    if (novo === 'CANCELADO') {
+      const ok = await confirmar(`Cancelar o pedido #${p.id}?`, {
+        titulo: 'Cancelar pedido',
+        rotuloConfirmar: 'Cancelar pedido',
+      })
+      if (!ok) return
+    }
+    await mudarStatus(p, novo)
+  })
 }
 
 // ── Detalhe ───────────────────────────────────────────────
 function abrirDetalhe(p: PedidoResponse): void {
+  interacoes += 1
   detalhe.value = p
 }
 
@@ -216,6 +275,8 @@ async function excluirDoDetalhe(): Promise<void> {
 
 // ── Edição ────────────────────────────────────────────────
 function abrirEdicao(p: PedidoResponse): void {
+  if (p.fechado) return
+  interacoes += 1
   editando.value = p
   formPlataformaId.value = p.plataformaId
   formFormaId.value = p.formaDePagamentoId
@@ -244,39 +305,47 @@ async function salvarEdicao(): Promise<void> {
     return
   }
 
+  const pedido = editando.value
+  const corpo = {
+    plataformaId: formPlataformaId.value,
+    nomeCliente: formNomeCliente.value.trim() || null,
+    formaDePagamentoId: formFormaId.value,
+    itens: carrinhoEdicao.value.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade })),
+  }
+
   salvando.value = true
   erroEdicao.value = ''
-  try {
-    const atualizado = await pedidosApi.atualizar(editando.value.id, {
-      plataformaId: formPlataformaId.value,
-      nomeCliente: formNomeCliente.value.trim() || null,
-      formaDePagamentoId: formFormaId.value,
-      itens: carrinhoEdicao.value.map((l) => ({ itemId: l.itemId, quantidade: l.quantidade })),
-    })
-    const i = pedidos.value.findIndex((x) => x.id === atualizado.id)
-    if (i >= 0) pedidos.value[i] = atualizado
-    toast.sucesso(`Pedido #${editando.value.id} atualizado.`)
-    editando.value = null
-  } catch (e) {
-    erroEdicao.value = e instanceof Error ? e.message : 'Erro ao salvar o pedido.'
-  } finally {
-    salvando.value = false
-  }
+  await comoAcaoDoUsuario(async () => {
+    try {
+      const atualizado = await pedidosApi.atualizar(pedido.id, corpo)
+      const i = pedidos.value.findIndex((x) => x.id === atualizado.id)
+      if (i >= 0) pedidos.value[i] = atualizado
+      toast.sucesso(`Pedido #${pedido.id} atualizado.`)
+      editando.value = null
+    } catch (e) {
+      erroEdicao.value = e instanceof Error ? e.message : 'Erro ao salvar o pedido.'
+    } finally {
+      salvando.value = false
+    }
+  })
 }
 
 async function excluir(p: PedidoResponse): Promise<void> {
-  const ok = await confirmar(`Excluir o pedido #${p.id}? Esta ação não pode ser desfeita.`, {
-    titulo: 'Excluir pedido',
-    rotuloConfirmar: 'Excluir',
+  if (p.fechado) return
+  await comoAcaoDoUsuario(async () => {
+    const ok = await confirmar(`Excluir o pedido #${p.id}? Esta ação não pode ser desfeita.`, {
+      titulo: 'Excluir pedido',
+      rotuloConfirmar: 'Excluir',
+    })
+    if (!ok) return
+    try {
+      await pedidosApi.excluir(p.id)
+      pedidos.value = pedidos.value.filter((x) => x.id !== p.id)
+      toast.sucesso(`Pedido #${p.id} excluído.`)
+    } catch (e) {
+      toast.erro(e instanceof Error ? e.message : 'Erro ao excluir o pedido.')
+    }
   })
-  if (!ok) return
-  try {
-    await pedidosApi.excluir(p.id)
-    pedidos.value = pedidos.value.filter((x) => x.id !== p.id)
-    toast.sucesso(`Pedido #${p.id} excluído.`)
-  } catch (e) {
-    toast.erro(e instanceof Error ? e.message : 'Erro ao excluir o pedido.')
-  }
 }
 </script>
 
@@ -340,6 +409,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
               <div class="pedido-card__tags">
                 <span class="tag">{{ p.plataformaNome }}</span>
                 <span class="tag tag--fraca">{{ p.formaDePagamentoNome }}</span>
+                <span v-if="p.fechado" class="badge">Fechado</span>
               </div>
               <div class="pedido-card__itens">{{ resumoItens(p) }}</div>
               <div class="pedido-card__rodape">
@@ -348,7 +418,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
               </div>
             </button>
 
-            <div class="pedido-card__acoes">
+            <div v-if="!p.fechado" class="pedido-card__acoes">
               <button
                 v-if="proximo(p.status, ehEntrega(p))"
                 type="button"
@@ -381,7 +451,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
   >
     <template v-if="detalhe">
       <p class="detalhe__meta">
-        {{ horaMin(detalhe.horarioPedido) }} · {{ detalhe.plataformaNome }} ·
+        {{ horaMin(detalhe.horarioPedido) }} · {{ detalhe.lojaNome }} · {{ detalhe.plataformaNome }} ·
         {{ detalhe.formaDePagamentoNome }}
       </p>
       <p class="detalhe__meta">
@@ -389,6 +459,9 @@ async function excluir(p: PedidoResponse): Promise<void> {
         <span class="badge" :class="detalhe.status === 'CANCELADO' ? '' : 'badge--on'">
           {{ STATUS_LABEL[detalhe.status] }}
         </span>
+        <template v-if="detalhe.fechado">
+          · <span class="badge">Fechado</span>
+        </template>
         · Cliente: {{ detalhe.nomeCliente || '—' }}
       </p>
 
@@ -419,14 +492,20 @@ async function excluir(p: PedidoResponse): Promise<void> {
     <template #acoes>
       <BaseButton variante="fantasma" @click="detalhe = null">Fechar</BaseButton>
       <BaseButton
-        v-if="detalhe && proximo(detalhe.status, ehEntrega(detalhe))"
+        v-if="detalhe && !detalhe.fechado && proximo(detalhe.status, ehEntrega(detalhe))"
         variante="fantasma"
         @click="avancar(detalhe)"
       >
         Avançar → {{ detalhe ? STATUS_LABEL[proximo(detalhe.status, ehEntrega(detalhe))!] : '' }}
       </BaseButton>
-      <BaseButton variante="fantasma" @click="editarDoDetalhe">Editar</BaseButton>
-      <BaseButton v-if="auth.isGerente" variante="perigo" @click="excluirDoDetalhe">
+      <BaseButton v-if="!detalhe?.fechado" variante="fantasma" @click="editarDoDetalhe">
+        Editar
+      </BaseButton>
+      <BaseButton
+        v-if="auth.isGerente && !detalhe?.fechado"
+        variante="perigo"
+        @click="excluirDoDetalhe"
+      >
         Excluir
       </BaseButton>
     </template>
@@ -445,7 +524,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
       <BaseField rotulo="Plataforma">
         <select v-model.number="formPlataformaId">
           <option :value="null">Selecione…</option>
-          <option v-for="p in plataformas" :key="p.id" :value="p.id">{{ p.nome }}</option>
+          <option v-for="p in plataformasDaEdicao" :key="p.id" :value="p.id">{{ p.nome }}</option>
         </select>
       </BaseField>
       <BaseField rotulo="Forma de pagamento">
