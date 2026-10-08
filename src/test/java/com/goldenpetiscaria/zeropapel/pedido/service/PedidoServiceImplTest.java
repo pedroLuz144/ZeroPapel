@@ -4,6 +4,7 @@ import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
 import com.goldenpetiscaria.zeropapel.canaldevenda.service.CanalDeVendaService;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
+import com.goldenpetiscaria.zeropapel.common.exception.RequisicaoInvalidaException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
@@ -11,19 +12,26 @@ import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import jakarta.validation.Validation;
+import jakarta.validation.Validator;
+import jakarta.validation.ValidatorFactory;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -46,6 +54,11 @@ import static org.mockito.Mockito.when;
 class PedidoServiceImplTest {
 
     private static final Long LOJA_ID = 7L;
+    private static final Long IFOOD_ID = 5L;
+    private static final String ID_NO_IFOOD = "a1b2c3d4-0001";
+
+    private static ValidatorFactory fabricaDeValidador;
+    private static Validator validator;
 
     @Mock
     private PedidoRepository pedidoRepository;
@@ -59,8 +72,24 @@ class PedidoServiceImplTest {
     @Mock
     private ItemRepository itemRepository;
 
-    @InjectMocks
     private PedidoServiceImpl service;
+
+    @BeforeAll
+    static void abrirValidador() {
+        fabricaDeValidador = Validation.buildDefaultValidatorFactory();
+        validator = fabricaDeValidador.getValidator();
+    }
+
+    @AfterAll
+    static void fecharValidador() {
+        fabricaDeValidador.close();
+    }
+
+    @BeforeEach
+    void montarService() {
+        service = new PedidoServiceImpl(pedidoRepository, canalDeVendaService,
+                formaDePagamentoRepository, itemRepository, validator);
+    }
 
     @Nested
     class TaxasCongeladas {
@@ -218,6 +247,41 @@ class PedidoServiceImplTest {
         }
 
         @Test
+        @DisplayName("o nome do item fica gravado no pedido e nao acompanha renomeacao do cardapio")
+        void registrarPedido_gravaONomeDoItem_quandoOItemERenomeadoDepois() {
+            Item cerveja = item(3L, "Cerveja", "9.50");
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
+            when(itemRepository.findById(3L)).thenReturn(Optional.of(cerveja));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.registrarPedido(new AdicionarPedidoRequest(
+                    LOJA_ID, 1L, null, 2L, List.of(new ItemPedidoRequest(3L, 1))));
+            Pedido salvo = capturarSalvo();
+
+            cerveja.setNome("Cerveja Long Neck");
+
+            assertThat(salvo.getItens().getFirst().getItem()).isSameAs(cerveja);
+            assertThat(salvo.getItens().getFirst().getNomeItem()).isEqualTo("Cerveja");
+            assertThat(salvo.getPlataformaPedidoId()).isNull();
+        }
+
+        @Test
+        void registrarPedido_devolveItemIdENomeGravado() {
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
+            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.50")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            PedidoResponseDTO resposta = service.registrarPedido(new AdicionarPedidoRequest(
+                    LOJA_ID, 1L, null, 2L, List.of(new ItemPedidoRequest(3L, 1))));
+
+            assertThat(resposta.plataformaPedidoId()).isNull();
+            assertThat(resposta.itens().getFirst().itemId()).isEqualTo(3L);
+            assertThat(resposta.itens().getFirst().itemNome()).isEqualTo("Cerveja");
+        }
+
+        @Test
         void registrarPedido_vinculaOPedidoALojaEAPlataformaDoCanal() {
             CanalDeVenda balcao = canal(1L, "Balcao", "0.00");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(balcao);
@@ -270,6 +334,229 @@ class PedidoServiceImplTest {
                     .isInstanceOf(RecursoNaoEncontradoException.class);
 
             verify(pedidoRepository, never()).save(any());
+        }
+    }
+
+    @Nested
+    class PedidoExterno {
+
+        @Test
+        @DisplayName("pedido externo entra com itens livres, sem consultar o cardapio")
+        void registrarPedidoExterno_criaPedidoComItensLivres() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(ifood);
+            when(formaDePagamentoRepository.findById(2L))
+                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+            LocalDateTime horarioNoIfood = LocalDateTime.of(2026, 10, 7, 20, 15);
+
+            PedidoResponseDTO resposta = service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, "Maria", 2L, horarioNoIfood,
+                    List.of(new ItemPedidoExternoRequest("X-Burger Promo", 2, new BigDecimal("24.90")),
+                            new ItemPedidoExternoRequest("Refrigerante Lata", 1, new BigDecimal("6.00")))));
+
+            Pedido salvo = capturarSalvo();
+            verifyNoInteractions(itemRepository);
+            assertThat(salvo.getPlataformaPedidoId()).isEqualTo(ID_NO_IFOOD);
+            assertThat(salvo.getLoja()).isSameAs(ifood.getLoja());
+            assertThat(salvo.getPlataforma()).isSameAs(ifood.getPlataforma());
+            assertThat(salvo.getNomeCliente()).isEqualTo("Maria");
+            assertThat(salvo.getHorarioPedido()).isEqualTo(horarioNoIfood);
+            assertThat(salvo.getStatus()).isEqualTo(StatusPedido.EM_ABERTO);
+            assertThat(salvo.isFechado()).isFalse();
+            assertThat(salvo.getValor()).isEqualByComparingTo("55.80");
+            assertThat(salvo.getItens()).hasSize(2);
+            ItemPedido primeiro = salvo.getItens().getFirst();
+            assertThat(primeiro.getItem()).isNull();
+            assertThat(primeiro.getPedido()).isSameAs(salvo);
+            assertThat(primeiro.getNomeItem()).isEqualTo("X-Burger Promo");
+            assertThat(primeiro.getQuantidade()).isEqualTo(2);
+            assertThat(primeiro.getPrecoUnitario()).isEqualByComparingTo("24.90");
+            assertThat(resposta.plataformaPedidoId()).isEqualTo(ID_NO_IFOOD);
+            assertThat(resposta.valor()).isEqualByComparingTo("55.80");
+            assertThat(resposta.itens().getFirst().itemId()).isNull();
+            assertThat(resposta.itens().getFirst().itemNome()).isEqualTo("X-Burger Promo");
+            assertThat(resposta.itens().getFirst().subtotal()).isEqualByComparingTo("49.80");
+        }
+
+        @Test
+        void registrarPedidoExterno_congelaAsTaxasVigentes() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+            FormaDePagamento credito = formaDePagamento(2L, "Credito", "2.99");
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(ifood);
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(credito));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.registrarPedidoExterno(pedidoExternoValido());
+            Pedido salvo = capturarSalvo();
+
+            ifood.setTaxaPercentual(new BigDecimal("14.00"));
+            credito.setTaxaPercentual(new BigDecimal("4.50"));
+
+            assertThat(salvo.getTaxaPlataformaPercentual()).isEqualByComparingTo("12.00");
+            assertThat(salvo.getTaxaPagamentoPercentual()).isEqualByComparingTo("2.99");
+        }
+
+        @Test
+        void registrarPedidoExterno_usaOHorarioAtual_quandoOHorarioNaoVem() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal(IFOOD_ID, "iFood", "12.00"));
+            when(formaDePagamentoRepository.findById(2L))
+                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+            LocalDateTime antes = LocalDateTime.now();
+
+            service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null,
+                    List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00")))));
+
+            assertThat(capturarSalvo().getHorarioPedido()).isBetween(antes, LocalDateTime.now());
+        }
+
+        @Test
+        @DisplayName("reentrega do mesmo pedido devolve o existente, sem gravar nem alterar nada")
+        void registrarPedidoExterno_devolveOExistente_quandoOPedidoJaFoiRegistrado() {
+            Pedido existente = pedidoExterno();
+            existente.setStatus(StatusPedido.EM_PREPARO);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(existente));
+
+            PedidoResponseDTO resposta = service.registrarPedidoExterno(pedidoExternoValido());
+
+            verify(pedidoRepository, never()).save(any());
+            verifyNoInteractions(canalDeVendaService, formaDePagamentoRepository, itemRepository);
+            assertThat(resposta.id()).isEqualTo(1L);
+            assertThat(resposta.status()).isEqualTo(StatusPedido.EM_PREPARO);
+            assertThat(resposta.valor()).isEqualByComparingTo("19.00");
+            assertThat(existente.getItens()).hasSize(1);
+            assertThat(existente.getItens().getFirst().getNomeItem()).isEqualTo("X-Burger");
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoOIdNaPlataformaEstaEmBranco() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, "  ", null, 2L, null,
+                    List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00"))))))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("identificador do pedido na plataforma");
+
+            verifyNoInteractions(pedidoRepository, canalDeVendaService);
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoNaoHaItens() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, List.of())))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("pelo menos um item");
+
+            verifyNoInteractions(pedidoRepository, canalDeVendaService);
+        }
+
+        @Test
+        @DisplayName("a validacao desce ate o item: quantidade zero, preco negativo e nome em branco")
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoUmItemEInvalido() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null,
+                    List.of(new ItemPedidoExternoRequest(" ", 0, new BigDecimal("-1.00"))))))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("nome do item")
+                    .hasMessageContaining("pelo menos 1")
+                    .hasMessageContaining("negativo");
+
+            verifyNoInteractions(pedidoRepository, canalDeVendaService);
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoLojaPlataformaOuPagamentoFaltam() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    null, null, ID_NO_IFOOD, null, null, null,
+                    List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00"))))))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("loja")
+                    .hasMessageContaining("plataforma")
+                    .hasMessageContaining("forma de pagamento");
+
+            verifyNoInteractions(pedidoRepository, canalDeVendaService);
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoORequestENulo() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(null))
+                    .isInstanceOf(RequisicaoInvalidaException.class);
+
+            verifyNoInteractions(pedidoRepository, canalDeVendaService);
+        }
+
+        @Test
+        @DisplayName("loja ou canal inativo nao recebe pedido externo")
+        void registrarPedidoExterno_propagaConflito_quandoOCanalEstaInativo() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID))
+                    .thenThrow(new ConflitoException("O canal esta inativo"));
+
+            assertThatThrownBy(() -> service.registrarPedidoExterno(pedidoExternoValido()))
+                    .isInstanceOf(ConflitoException.class);
+
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRecursoNaoEncontrado_quandoAFormaDePagamentoNaoExiste() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal(IFOOD_ID, "iFood", "12.00"));
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> service.registrarPedidoExterno(pedidoExternoValido()))
+                    .isInstanceOf(RecursoNaoEncontradoException.class);
+
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("pedido vindo de plataforma externa nao aceita edicao de conteudo")
+        void atualizarPedido_lancaConflito_quandoOPedidoEExterno() {
+            Pedido externo = pedidoExterno();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
+
+            assertThatThrownBy(() -> service.atualizarPedido(1L,
+                    new AtualizarPedidoRequest(null, "Outro Nome", null, List.of(new ItemPedidoRequest(3L, 1)))))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("plataforma externa");
+
+            assertThat(externo.getNomeCliente()).isEqualTo("Maria");
+            assertThat(externo.getItens().getFirst().getNomeItem()).isEqualTo("X-Burger");
+            verifyNoInteractions(itemRepository);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        void atualizarStatus_gravaONovoStatus_quandoOPedidoEExterno() {
+            Pedido externo = pedidoExterno();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            PedidoResponseDTO resposta = service.atualizarStatus(1L, StatusPedido.CANCELADO);
+
+            assertThat(externo.getStatus()).isEqualTo(StatusPedido.CANCELADO);
+            assertThat(resposta.plataformaPedidoId()).isEqualTo(ID_NO_IFOOD);
+        }
+
+        @Test
+        void excluirPedido_excluiNormalmente_quandoOPedidoEExternoENaoFoiFechado() {
+            Pedido externo = pedidoExterno();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
+
+            service.excluirPedido(1L);
+
+            verify(pedidoRepository).delete(externo);
         }
     }
 
@@ -382,6 +669,25 @@ class PedidoServiceImplTest {
         return pedido;
     }
 
+    private RegistrarPedidoExternoRequest pedidoExternoValido() {
+        return new RegistrarPedidoExternoRequest(LOJA_ID, IFOOD_ID, ID_NO_IFOOD, "Maria", 2L,
+                LocalDateTime.of(2026, 10, 7, 20, 15),
+                List.of(new ItemPedidoExternoRequest("X-Burger", 2, new BigDecimal("9.50"))));
+    }
+
+    private Pedido pedidoExterno() {
+        Pedido pedido = pedidoExistente(canal(IFOOD_ID, "iFood", "12.00"),
+                formaDePagamento(2L, "Online", "0.00"));
+        pedido.setPlataformaPedidoId(ID_NO_IFOOD);
+        pedido.setNomeCliente("Maria");
+        ItemPedido itemExterno = new ItemPedido();
+        itemExterno.setNomeItem("X-Burger");
+        itemExterno.setQuantidade(2);
+        itemExterno.setPrecoUnitario(new BigDecimal("9.50"));
+        pedido.setItens(new ArrayList<>(List.of(itemExterno)));
+        return pedido;
+    }
+
     private Pedido pedidoExistente(CanalDeVenda canal, FormaDePagamento formaDePagamento) {
         Pedido pedido = new Pedido();
         pedido.setId(1L);
@@ -400,6 +706,7 @@ class PedidoServiceImplTest {
     private ItemPedido itemPedido(Item item, int quantidade, String precoUnitario) {
         ItemPedido itemPedido = new ItemPedido();
         itemPedido.setItem(item);
+        itemPedido.setNomeItem(item.getNome());
         itemPedido.setQuantidade(quantidade);
         itemPedido.setPrecoUnitario(new BigDecimal(precoUnitario));
         return itemPedido;

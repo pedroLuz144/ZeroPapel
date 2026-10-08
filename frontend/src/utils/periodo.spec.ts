@@ -9,6 +9,7 @@ function pedido(id: number, status: StatusPedido, horarioPedido: string, fechado
     lojaNome: 'Matriz',
     plataformaId: 1,
     plataformaNome: 'Balcão',
+    plataformaPedidoId: null,
     nomeCliente: null,
     horarioPedido,
     formaDePagamentoId: 1,

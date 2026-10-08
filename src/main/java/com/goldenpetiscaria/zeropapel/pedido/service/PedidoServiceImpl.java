@@ -6,7 +6,9 @@ import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.ItemPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
@@ -16,8 +18,11 @@ import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
+import com.goldenpetiscaria.zeropapel.common.exception.RequisicaoInvalidaException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +30,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 
 @Service
 public class PedidoServiceImpl implements PedidoService {
@@ -35,40 +42,46 @@ public class PedidoServiceImpl implements PedidoService {
     private final CanalDeVendaService canalDeVendaService;
     private final FormaDePagamentoRepository formaDePagamentoRepository;
     private final ItemRepository itemRepository;
+    private final Validator validator;
 
     public PedidoServiceImpl(PedidoRepository pedidoRepository,
                              CanalDeVendaService canalDeVendaService,
                              FormaDePagamentoRepository formaDePagamentoRepository,
-                             ItemRepository itemRepository) {
+                             ItemRepository itemRepository,
+                             Validator validator) {
         this.pedidoRepository = pedidoRepository;
         this.canalDeVendaService = canalDeVendaService;
         this.formaDePagamentoRepository = formaDePagamentoRepository;
         this.itemRepository = itemRepository;
+        this.validator = validator;
     }
 
     @Override
     @Transactional
     public PedidoResponseDTO registrarPedido(AdicionarPedidoRequest request) {
-        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(request.lojaId(), request.plataformaId());
+        Pedido pedido = abrirPedido(request.lojaId(), request.plataformaId(), request.formaDePagamentoId(),
+                request.nomeCliente(), LocalDateTime.now());
 
-        FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
+        return salvarComItens(pedido, montarItensPedido(request.itens(), pedido));
+    }
 
-        Pedido pedido = new Pedido();
-        pedido.setLoja(canal.getLoja());
-        pedido.setPlataforma(canal.getPlataforma());
-        pedido.setTaxaPlataformaPercentual(canal.getTaxaPercentual());
-        pedido.setFormaDePagamento(formaDePagamento);
-        pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
-        pedido.setNomeCliente(request.nomeCliente());
-        pedido.setHorarioPedido(LocalDateTime.now());
-        pedido.setStatus(StatusPedido.EM_ABERTO);
+    @Override
+    @Transactional
+    public PedidoResponseDTO registrarPedidoExterno(RegistrarPedidoExternoRequest request) {
+        validarPedidoExterno(request);
 
-        List<ItemPedido> itensPedido = montarItensPedido(request.itens(), pedido);
-        pedido.setItens(itensPedido);
-        pedido.setValor(calcularValor(itensPedido));
+        Optional<Pedido> jaRegistrado = pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(
+                request.plataformaId(), request.plataformaPedidoId());
+        if (jaRegistrado.isPresent()) {
+            return toDTO(jaRegistrado.get());
+        }
 
-        return toDTO(pedidoRepository.save(pedido));
+        LocalDateTime horarioPedido = request.horarioPedido() != null ? request.horarioPedido() : LocalDateTime.now();
+        Pedido pedido = abrirPedido(request.lojaId(), request.plataformaId(), request.formaDePagamentoId(),
+                request.nomeCliente(), horarioPedido);
+        pedido.setPlataformaPedidoId(request.plataformaPedidoId());
+
+        return salvarComItens(pedido, montarItensExternos(request.itens(), pedido));
     }
 
     @Override
@@ -94,6 +107,10 @@ public class PedidoServiceImpl implements PedidoService {
     @Transactional
     public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
         Pedido pedido = buscarAlteravel(id);
+        if (pedido.getPlataformaPedidoId() != null) {
+            throw new ConflitoException(
+                    "Pedido vindo de plataforma externa não pode ser editado; só o status pode mudar");
+        }
 
         if (request.plataformaId() != null
                 && !request.plataformaId().equals(pedido.getPlataforma().getId())) {
@@ -105,8 +122,7 @@ public class PedidoServiceImpl implements PedidoService {
 
         if (request.formaDePagamentoId() != null
                 && !request.formaDePagamentoId().equals(pedido.getFormaDePagamento().getId())) {
-            FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(request.formaDePagamentoId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
+            FormaDePagamento formaDePagamento = buscarFormaDePagamento(request.formaDePagamentoId());
             pedido.setFormaDePagamento(formaDePagamento);
             pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
         }
@@ -150,6 +166,45 @@ public class PedidoServiceImpl implements PedidoService {
         return pedido;
     }
 
+    private void validarPedidoExterno(RegistrarPedidoExternoRequest request) {
+        if (request == null) {
+            throw new RequisicaoInvalidaException("O pedido externo é obrigatório");
+        }
+        Set<ConstraintViolation<RegistrarPedidoExternoRequest>> violacoes = validator.validate(request);
+        if (!violacoes.isEmpty()) {
+            List<String> motivos = violacoes.stream().map(ConstraintViolation::getMessage).sorted().toList();
+            throw new RequisicaoInvalidaException("Pedido externo inválido: " + String.join("; ", motivos));
+        }
+    }
+
+    private Pedido abrirPedido(Long lojaId, Long plataformaId, Long formaDePagamentoId,
+                               String nomeCliente, LocalDateTime horarioPedido) {
+        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(lojaId, plataformaId);
+        FormaDePagamento formaDePagamento = buscarFormaDePagamento(formaDePagamentoId);
+
+        Pedido pedido = new Pedido();
+        pedido.setLoja(canal.getLoja());
+        pedido.setPlataforma(canal.getPlataforma());
+        pedido.setTaxaPlataformaPercentual(canal.getTaxaPercentual());
+        pedido.setFormaDePagamento(formaDePagamento);
+        pedido.setTaxaPagamentoPercentual(formaDePagamento.getTaxaPercentual());
+        pedido.setNomeCliente(nomeCliente);
+        pedido.setHorarioPedido(horarioPedido);
+        pedido.setStatus(StatusPedido.EM_ABERTO);
+        return pedido;
+    }
+
+    private PedidoResponseDTO salvarComItens(Pedido pedido, List<ItemPedido> itensPedido) {
+        pedido.setItens(itensPedido);
+        pedido.setValor(calcularValor(itensPedido));
+        return toDTO(pedidoRepository.save(pedido));
+    }
+
+    private FormaDePagamento buscarFormaDePagamento(Long formaDePagamentoId) {
+        return formaDePagamentoRepository.findById(formaDePagamentoId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
+    }
+
     private List<ItemPedido> montarItensPedido(List<ItemPedidoRequest> itensRequest, Pedido pedido) {
         List<ItemPedido> itensPedido = new ArrayList<>();
         for (ItemPedidoRequest itemRequest : itensRequest) {
@@ -158,8 +213,22 @@ public class PedidoServiceImpl implements PedidoService {
             ItemPedido itemPedido = new ItemPedido();
             itemPedido.setPedido(pedido);
             itemPedido.setItem(item);
+            itemPedido.setNomeItem(item.getNome());
             itemPedido.setQuantidade(itemRequest.quantidade());
             itemPedido.setPrecoUnitario(item.getPreco());
+            itensPedido.add(itemPedido);
+        }
+        return itensPedido;
+    }
+
+    private List<ItemPedido> montarItensExternos(List<ItemPedidoExternoRequest> itensRequest, Pedido pedido) {
+        List<ItemPedido> itensPedido = new ArrayList<>();
+        for (ItemPedidoExternoRequest itemRequest : itensRequest) {
+            ItemPedido itemPedido = new ItemPedido();
+            itemPedido.setPedido(pedido);
+            itemPedido.setNomeItem(itemRequest.nomeItem());
+            itemPedido.setQuantidade(itemRequest.quantidade());
+            itemPedido.setPrecoUnitario(itemRequest.precoUnitario());
             itensPedido.add(itemPedido);
         }
         return itensPedido;
@@ -179,8 +248,8 @@ public class PedidoServiceImpl implements PedidoService {
         for (ItemPedido i : pedido.getItens()) {
             BigDecimal subtotal = i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade()));
             itensDTO.add(new ItemPedidoResponseDTO(
-                    i.getItem().getId(),
-                    i.getItem().getNome(),
+                    i.getItem() != null ? i.getItem().getId() : null,
+                    i.getNomeItem(),
                     i.getQuantidade(),
                     i.getPrecoUnitario(),
                     subtotal
@@ -193,6 +262,7 @@ public class PedidoServiceImpl implements PedidoService {
                 pedido.getLoja().getNome(),
                 pedido.getPlataforma().getId(),
                 pedido.getPlataforma().getNome(),
+                pedido.getPlataformaPedidoId(),
                 pedido.getNomeCliente(),
                 pedido.getHorarioPedido(),
                 pedido.getFormaDePagamento().getId(),

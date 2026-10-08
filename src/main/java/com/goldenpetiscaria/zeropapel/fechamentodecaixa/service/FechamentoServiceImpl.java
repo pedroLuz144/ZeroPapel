@@ -17,7 +17,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class FechamentoServiceImpl implements FechamentoService {
@@ -252,51 +254,39 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     private List<ItemRankingDTO> calcularRankingDeItens(List<Pedido> pedidos) {
-        List<Long> idsDeItens = coletarIdsUnicosDeItens(pedidos);
-        List<ItemRankingDTO> resultado = new ArrayList<>();
+        Map<ChaveDoRanking, ItemRankingDTO> acumuladoPorChave = new LinkedHashMap<>();
 
-        for (Long itemId : idsDeItens) {
-            String nomeDoItem = "";
-            int quantidadeTotal = 0;
-            BigDecimal receitaTotal = BigDecimal.ZERO;
+        for (Pedido pedido : pedidos) {
+            for (ItemPedido itemPedido : pedido.getItens()) {
+                ChaveDoRanking chave = chaveDoRanking(itemPedido);
+                int quantidadeTotal = itemPedido.getQuantidade();
+                BigDecimal receitaTotal =
+                        itemPedido.getPrecoUnitario().multiply(BigDecimal.valueOf(itemPedido.getQuantidade()));
 
-            for (Pedido pedido : pedidos) {
-                for (ItemPedido itemPedido : pedido.getItens()) {
-                    if (itemPedido.getItem().getId().equals(itemId)) {
-                        nomeDoItem = itemPedido.getItem().getNome();
-                        quantidadeTotal += itemPedido.getQuantidade();
-                        receitaTotal = receitaTotal.add(
-                                itemPedido.getPrecoUnitario().multiply(BigDecimal.valueOf(itemPedido.getQuantidade())));
-                    }
+                ItemRankingDTO acumulado = acumuladoPorChave.get(chave);
+                if (acumulado != null) {
+                    quantidadeTotal += acumulado.quantidadeTotal();
+                    receitaTotal = receitaTotal.add(acumulado.receitaTotal());
                 }
-            }
 
-            resultado.add(new ItemRankingDTO(itemId, nomeDoItem, quantidadeTotal, receitaTotal));
+                acumuladoPorChave.put(chave,
+                        new ItemRankingDTO(chave.itemId(), itemPedido.getNomeItem(), quantidadeTotal, receitaTotal));
+            }
         }
 
+        List<ItemRankingDTO> resultado = new ArrayList<>(acumuladoPorChave.values());
         resultado.sort((itemA, itemB) -> itemB.quantidadeTotal().compareTo(itemA.quantidadeTotal()));
         return resultado;
     }
 
-    private List<Long> coletarIdsUnicosDeItens(List<Pedido> pedidos) {
-        List<Long> ids = new ArrayList<>();
-        for (Pedido pedido : pedidos) {
-            for (ItemPedido itemPedido : pedido.getItens()) {
-                Long itemId = itemPedido.getItem().getId();
-                boolean jaExiste = false;
-                for (Long idJaAdicionado : ids) {
-                    if (idJaAdicionado.equals(itemId)) {
-                        jaExiste = true;
-                        break;
-                    }
-                }
-                if (!jaExiste) {
-                    ids.add(itemId);
-                }
-            }
+    private ChaveDoRanking chaveDoRanking(ItemPedido itemPedido) {
+        if (itemPedido.getItem() != null) {
+            return new ChaveDoRanking(itemPedido.getItem().getId(), null);
         }
-        return ids;
+        return new ChaveDoRanking(null, itemPedido.getNomeItem());
     }
+
+    private record ChaveDoRanking(Long itemId, String nomeDoItemExterno) {}
 
     private List<PedidosPorHoraDTO> calcularCurvaHoraria(List<Pedido> pedidos) {
         List<Integer> horasUnicas = coletarHorasUnicas(pedidos);

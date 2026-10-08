@@ -214,6 +214,84 @@ class FechamentoServiceImplTest {
             assertThat(previa.itensMaisVendidos()).extracting(dto -> dto.itemNome())
                     .containsExactly("Refrigerante", "Porcao");
         }
+
+        @Test
+        @DisplayName("item de pedido externo entra no ranking agrupado pelo nome gravado, sem id")
+        void calcularPrevia_agregaItemExternoPeloNomeGravado() {
+            CanalDeVenda ifood = canal("iFood", "12.00");
+            FormaDePagamento online = formaDePagamento("Online", "0.00");
+
+            Pedido primeiro = pedido("49.80", ifood, online, 19);
+            primeiro.setItens(List.of(itemExterno("X-Burger Promo", 2, "24.90")));
+            Pedido segundo = pedido("22.00", ifood, online, 20);
+            segundo.setItens(List.of(itemExterno("X-Burger Promo", 1, "22.00")));
+            darPedidos(primeiro, segundo);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.itensMaisVendidos()).hasSize(1);
+            assertThat(previa.itensMaisVendidos().getFirst().itemId()).isNull();
+            assertThat(previa.itensMaisVendidos().getFirst().itemNome()).isEqualTo("X-Burger Promo");
+            assertThat(previa.itensMaisVendidos().getFirst().quantidadeTotal()).isEqualTo(3);
+            assertThat(previa.itensMaisVendidos().getFirst().receitaTotal()).isEqualByComparingTo("71.80");
+        }
+
+        @Test
+        @DisplayName("item externo com o mesmo nome de um item do cardapio fica em linha separada")
+        void calcularPrevia_naoMisturaItemExternoComItemDoCardapioDeMesmoNome() {
+            CanalDeVenda balcao = canal("Balcao", "0.00");
+            CanalDeVenda ifood = canal("iFood", "12.00");
+            FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
+            Item cerveja = item(2L, "Cerveja", "9.00");
+
+            Pedido noBalcao = pedido("45.00", balcao, dinheiro, 19);
+            noBalcao.setItens(List.of(itemPedido(cerveja, 5, "9.00")));
+            Pedido noIfood = pedido("22.00", ifood, dinheiro, 20);
+            noIfood.setItens(List.of(itemExterno("Cerveja", 2, "11.00")));
+            darPedidos(noBalcao, noIfood);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.itensMaisVendidos()).hasSize(2);
+            assertThat(previa.itensMaisVendidos().get(0).itemId()).isEqualTo(2L);
+            assertThat(previa.itensMaisVendidos().get(0).quantidadeTotal()).isEqualTo(5);
+            assertThat(previa.itensMaisVendidos().get(0).receitaTotal()).isEqualByComparingTo("45.00");
+            assertThat(previa.itensMaisVendidos().get(1).itemId()).isNull();
+            assertThat(previa.itensMaisVendidos().get(1).itemNome()).isEqualTo("Cerveja");
+            assertThat(previa.itensMaisVendidos().get(1).quantidadeTotal()).isEqualTo(2);
+            assertThat(previa.itensMaisVendidos().get(1).receitaTotal()).isEqualByComparingTo("22.00");
+        }
+
+        @Test
+        @DisplayName("o ranking mostra o nome gravado na venda, nao o nome atual do cardapio")
+        void calcularPrevia_usaONomeGravado_quandoOItemDoCardapioFoiRenomeado() {
+            CanalDeVenda balcao = canal("Balcao", "0.00");
+            FormaDePagamento dinheiro = formaDePagamento("Dinheiro", "0.00");
+            Item cerveja = item(2L, "Cerveja", "9.00");
+            Pedido pedido = pedido("9.00", balcao, dinheiro, 19);
+            pedido.setItens(List.of(itemPedido(cerveja, 1, "9.00")));
+            cerveja.setNome("Cerveja Long Neck");
+            darPedidos(pedido);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.itensMaisVendidos().getFirst().itemNome()).isEqualTo("Cerveja");
+        }
+
+        @Test
+        void calcularPrevia_naoMudaODinheiro_quandoOPedidoTemItemExterno() {
+            CanalDeVenda ifood = canal("iFood", "12.00");
+            FormaDePagamento credito = formaDePagamento("Credito", "3.00");
+            Pedido pedido = pedido("100.00", ifood, credito, 20);
+            pedido.setItens(List.of(itemExterno("Combo", 1, "100.00")));
+            darPedidos(pedido);
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().faturamentoBruto()).isEqualByComparingTo("100.00");
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("15.00");
+            assertThat(previa.resumo().faturamentoLiquido()).isEqualByComparingTo("85.00");
+        }
     }
 
     @Nested
@@ -429,6 +507,15 @@ class FechamentoServiceImplTest {
     private ItemPedido itemPedido(Item item, int quantidade, String precoUnitario) {
         ItemPedido itemPedido = new ItemPedido();
         itemPedido.setItem(item);
+        itemPedido.setNomeItem(item.getNome());
+        itemPedido.setQuantidade(quantidade);
+        itemPedido.setPrecoUnitario(new BigDecimal(precoUnitario));
+        return itemPedido;
+    }
+
+    private ItemPedido itemExterno(String nomeItem, int quantidade, String precoUnitario) {
+        ItemPedido itemPedido = new ItemPedido();
+        itemPedido.setNomeItem(nomeItem);
         itemPedido.setQuantidade(quantidade);
         itemPedido.setPrecoUnitario(new BigDecimal(precoUnitario));
         return itemPedido;

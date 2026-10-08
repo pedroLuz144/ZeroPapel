@@ -9,11 +9,13 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     boolean existsByPlataformaId(Long plataformaId);
     boolean existsByFormaDePagamentoId(Long formaDePagamentoId);
+    Optional<Pedido> findByPlataformaIdAndPlataformaPedidoId(Long plataformaId, String plataformaPedidoId);
 
     @Query("SELECT DISTINCT p FROM Pedido p " +
            "JOIN FETCH p.loja " +

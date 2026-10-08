@@ -190,7 +190,7 @@ export interface AtualizarPedidoRequest {
 }
 
 export interface ItemPedidoResponse {
-  itemId: number
+  itemId: number | null
   itemNome: string
   quantidade: number
   precoUnitario: number
@@ -203,6 +203,7 @@ export interface PedidoResponse {
   lojaNome: string
   plataformaId: number
   plataformaNome: string
+  plataformaPedidoId: string | null
   nomeCliente: string | null
   horarioPedido: string
   formaDePagamentoId: number
@@ -245,7 +246,7 @@ export interface FechamentoPorFormaDePagamento {
 }
 
 export interface ItemRanking {
-  itemId: number
+  itemId: number | null
   itemNome: string
   quantidadeTotal: number
   receitaTotal: number
