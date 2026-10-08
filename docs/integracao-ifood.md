@@ -107,13 +107,14 @@ IfoodPollingJob (@Scheduled ~30s)
        └─ persiste evento CRU (inbox/staging)        ← desacopla "receber" de "processar"
             └─ IfoodOrderClient.buscarPedido(orderId)
                  └─ IfoodPedidoTranslator (Anti-Corruption Layer)   ← todo o JSON feio morre aqui
-                      └─ monta AdicionarPedidoRequest
-                           └─ PedidoService.adicionar(...)   ← reusa regra existente, não duplica
+                      └─ monta RegistrarPedidoExternoRequest
+                           └─ PedidoService.registrarPedidoExterno(...)   ← reusa regra existente, não duplica
 ```
 
 Princípios:
-- **Anti-Corruption Layer:** uma classe traduz `IfoodOrder → AdicionarPedidoRequest`. Mudança de
-  contrato do iFood se resolve em um só arquivo.
+- **Anti-Corruption Layer:** uma classe traduz `IfoodOrder → RegistrarPedidoExternoRequest`. Mudança de
+  contrato do iFood se resolve em um só arquivo. Não é o `AdicionarPedidoRequest` do `POST /pedidos`:
+  abrir preço e nome livres nele deixaria o operador registrar venda de balcão com preço arbitrário.
 - **Inbox/staging cru:** salvar o payload bruto antes de traduzir permite replay/reprocesso e debug
   sem re-pollar. Separa "recebi" de "entendi".
 - **Idempotência por identidade externa:** ingestão é *upsert* por `(plataforma, plataformaPedidoId)`.
@@ -137,9 +138,13 @@ Princípios:
 2. **`Pedido`:** FK `Loja`, `plataformaPedidoId`, `status`, unique `(plataforma, plataformaPedidoId)`.
    - ✅ Já entrou junto com a etapa 1: FK `Loja` (`pedidos.loja_id` not null, V7), `lojaId` no
      `AdicionarPedidoRequest` e seletor de loja no PDV.
-   - Falta: `plataformaPedidoId` + unique `(plataforma, plataformaPedidoId)`; `ItemPedido` com
-     FK de item opcional e `nomeItem` (decisão 4); mapear o status do iFood para o `StatusPedido`
-     que já existe.
+   - ✅ Concluído em 07/10/2026: `plataformaPedidoId` + unique `(plataforma, plataformaPedidoId)`
+     (V9); `ItemPedido` com FK de item opcional e `nomeItem` sempre gravado, inclusive no PDV
+     (decisão 4, V10); `PedidoService.registrarPedidoExterno(RegistrarPedidoExternoRequest)`,
+     idempotente pela identidade externa e sem controller; pedido externo recusa edição de
+     conteúdo (decisão 2); ranking de itens agrupa item externo pelo nome gravado.
+   - Falta: mapear o status do iFood para o `StatusPedido` que já existe (a parte de status da
+     decisão 8). Hoje o pedido externo entra `EM_ABERTO` e uma reentrega não altera o status.
 3. **Fechamento:** regra condicional de taxa (decisão 9) e filtro por loja — hoje fechamento e
    dashboard consolidam todas as lojas juntas. A exclusão de cancelados já existe (`CANCELADO`).
 4. **Ingestão iFood:** auth OAuth (app-level) → polling + ack → inbox → busca pedido → translator → `PedidoService`.
