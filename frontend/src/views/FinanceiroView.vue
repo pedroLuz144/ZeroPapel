@@ -2,9 +2,14 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import BaseButton from '@/components/BaseButton.vue'
 import BaseField from '@/components/BaseField.vue'
-import { dashboardApi, fechamentoApi } from '@/api'
-import type { FechamentoCaixaListagem, FechamentoResponse } from '@/api/types'
+import { dashboardApi, fechamentoApi, HttpError, pedidosApi } from '@/api'
+import type {
+  FechamentoCaixaListagem,
+  FechamentoResponse,
+  RealizarFechamentoRequest,
+} from '@/api/types'
 import { comSegundos, dataHora, moeda, paraInputDateTime } from '@/utils/formato'
+import { pedidosEmAndamentoNoPeriodo, periodoDoFechamento } from '@/utils/periodo'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
 
@@ -21,10 +26,13 @@ const carregando = ref(true) // primeira carga
 const atualizando = ref(false) // recarga silenciosa (poll / botão)
 const fechando = ref(false) // POST /fechamento em andamento
 const erro = ref('')
+const erroHistorico = ref('')
 
 const janelaCustom = ref(false) // usuário aplicou um período manual
+const periodoEditado = ref(false)
 const fonteAoVivo = ref(true) // false quando exibindo um fechamento salvo
 let timer: number | undefined
+let trocasDeFonte = 0
 
 function hora(h: number): string {
   return `${String(h).padStart(2, '0')}:00`
@@ -36,6 +44,7 @@ function periodoDeHoje(): void {
   inicio.setHours(0, 0, 0, 0)
   de.value = paraInputDateTime(inicio)
   ate.value = paraInputDateTime(agora)
+  periodoEditado.value = false
 }
 
 // ── Derivados ─────────────────────────────────────────────
@@ -68,7 +77,11 @@ const totalPlataformas = computed(() => {
 })
 
 // ── Carga ─────────────────────────────────────────────────
-async function carregarDashboard(custom: boolean, silencioso = false): Promise<void> {
+async function carregarDashboard(
+  custom: boolean,
+  opcoes: { silencioso?: boolean; automatico?: boolean } = {},
+): Promise<void> {
+  const troca = opcoes.automatico ? trocasDeFonte : ++trocasDeFonte
   erro.value = ''
   if (custom) {
     if (!de.value || !ate.value) {
@@ -82,13 +95,16 @@ async function carregarDashboard(custom: boolean, silencioso = false): Promise<v
   }
 
   janelaCustom.value = custom
-  fonteAoVivo.value = true
-  if (silencioso) atualizando.value = true
+  if (opcoes.silencioso) atualizando.value = true
   try {
-    atual.value = custom
+    const consolidado = custom
       ? await dashboardApi.periodo(comSegundos(de.value), comSegundos(ate.value))
       : await dashboardApi.hoje()
+    if (troca !== trocasDeFonte) return
+    atual.value = consolidado
+    fonteAoVivo.value = true
   } catch (e) {
+    if (troca !== trocasDeFonte) return
     erro.value = e instanceof Error ? e.message : 'Erro ao carregar o dashboard.'
   } finally {
     carregando.value = false
@@ -102,14 +118,15 @@ function verHoje(): void {
 }
 
 function atualizarAgora(): void {
-  carregarDashboard(janelaCustom.value, true)
+  carregarDashboard(janelaCustom.value, { silencioso: true })
 }
 
 async function carregarHistorico(): Promise<void> {
   try {
     historico.value = await fechamentoApi.listar()
-  } catch {
-    /* histórico é secundário — silencioso */
+    erroHistorico.value = ''
+  } catch (e) {
+    erroHistorico.value = e instanceof Error ? e.message : 'Erro ao carregar o histórico de fechamentos.'
   }
 }
 
@@ -118,7 +135,7 @@ onMounted(() => {
   carregarDashboard(false)
   carregarHistorico()
   timer = window.setInterval(() => {
-    if (fonteAoVivo.value) carregarDashboard(janelaCustom.value, true)
+    if (fonteAoVivo.value) carregarDashboard(janelaCustom.value, { silencioso: true, automatico: true })
   }, 60000)
 })
 
@@ -127,25 +144,46 @@ onUnmounted(() => {
 })
 
 // ── Fechar caixa (persiste) ──────────────────────────────
+async function avisoDePedidosEmAndamento(periodo: RealizarFechamentoRequest): Promise<string> {
+  let emAndamento: number
+  try {
+    emAndamento = pedidosEmAndamentoNoPeriodo(await pedidosApi.listar(), periodo).length
+  } catch (e) {
+    if (e instanceof HttpError && e.status === 401) throw e
+    return 'Não foi possível verificar se há pedidos em andamento nesse período; os que houver ficarão travados. '
+  }
+  if (emAndamento === 0) return ''
+  return emAndamento === 1
+    ? 'Há 1 pedido ainda em andamento nesse período: depois do fechamento ele fica travado e não poderá mais ser avançado, editado nem cancelado. '
+    : `Há ${emAndamento} pedidos ainda em andamento nesse período: depois do fechamento eles ficam travados e não poderão mais ser avançados, editados nem cancelados. `
+}
+
 async function fecharCaixa(): Promise<void> {
-  if (!de.value || !ate.value || de.value >= ate.value) {
+  if (fechando.value) return
+  const aoVivo = !janelaCustom.value && !periodoEditado.value
+  if (!aoVivo && (!de.value || !ate.value || de.value >= ate.value)) {
     toast.erro('Ajuste o período no filtro acima antes de fechar o caixa.')
     return
   }
-  const ok = await confirmar(
-    `Fechar o caixa de ${dataHora(comSegundos(de.value))} a ${dataHora(comSegundos(ate.value))}? ` +
-      'Isso grava um registro permanente e não pode ser desfeito pela tela.',
-    { titulo: 'Fechar caixa', rotuloConfirmar: 'Fechar caixa' },
-  )
-  if (!ok) return
+  const periodo = periodoDoFechamento({ aoVivo, de: de.value, ate: ate.value, agora: new Date() })
+  if (aoVivo) {
+    de.value = periodo.de.slice(0, 16)
+    ate.value = periodo.ate.slice(0, 16)
+  }
 
   fechando.value = true
   try {
-    const salvo = await fechamentoApi.realizar({
-      de: comSegundos(de.value),
-      ate: comSegundos(ate.value),
-    })
+    const aviso = await avisoDePedidosEmAndamento(periodo)
+    const ok = await confirmar(
+      `Fechar o caixa de ${dataHora(periodo.de)} a ${dataHora(periodo.ate)}? ${aviso}` +
+        'Isso grava um registro permanente e não pode ser desfeito pela tela.',
+      { titulo: 'Fechar caixa', rotuloConfirmar: 'Fechar caixa' },
+    )
+    if (!ok) return
+
+    const salvo = await fechamentoApi.realizar(periodo)
     toast.sucesso('Caixa fechado — registro salvo.')
+    trocasDeFonte += 1
     atual.value = salvo
     fonteAoVivo.value = false
     await carregarHistorico()
@@ -157,9 +195,12 @@ async function fecharCaixa(): Promise<void> {
 }
 
 async function abrir(id: number): Promise<void> {
+  const troca = ++trocasDeFonte
   erro.value = ''
   try {
-    atual.value = await fechamentoApi.buscar(id)
+    const salvo = await fechamentoApi.buscar(id)
+    if (troca !== trocasDeFonte) return
+    atual.value = salvo
     fonteAoVivo.value = false
     window.scrollTo({ top: 0, behavior: 'smooth' })
   } catch (e) {
@@ -183,10 +224,10 @@ async function abrir(id: number): Promise<void> {
 
   <div class="periodo">
     <BaseField rotulo="De">
-      <input v-model="de" type="datetime-local" />
+      <input v-model="de" type="datetime-local" @input="periodoEditado = true" />
     </BaseField>
     <BaseField rotulo="Até">
-      <input v-model="ate" type="datetime-local" />
+      <input v-model="ate" type="datetime-local" @input="periodoEditado = true" />
     </BaseField>
     <BaseButton variante="fantasma" @click="verHoje">Hoje</BaseButton>
     <BaseButton variante="fantasma" @click="carregarDashboard(true)">Ver período</BaseButton>
@@ -364,7 +405,10 @@ async function abrir(id: number): Promise<void> {
           </tr>
         </thead>
         <tbody>
-          <tr v-if="historico.length === 0">
+          <tr v-if="erroHistorico">
+            <td colspan="9"><div class="alerta-erro">{{ erroHistorico }}</div></td>
+          </tr>
+          <tr v-else-if="historico.length === 0">
             <td colspan="9" class="tabela__vazio">Nenhum fechamento gerado ainda.</td>
           </tr>
           <tr v-for="fc in historico" :key="fc.id">
