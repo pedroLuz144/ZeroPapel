@@ -342,7 +342,7 @@ async function abrir(id: number): Promise<void> {
                 <tr v-if="atual.itensMaisVendidos.length === 0">
                   <td colspan="3" class="tabela__vazio">Sem dados no período.</td>
                 </tr>
-                <tr v-for="it in atual.itensMaisVendidos" :key="it.itemId">
+                <tr v-for="it in atual.itensMaisVendidos" :key="it.itemId ?? `externo:${it.itemNome}`">
                   <td>{{ it.itemNome }}</td>
                   <td class="num">{{ it.quantidadeTotal }}</td>
                   <td class="num">{{ moeda(it.receitaTotal) }}</td>

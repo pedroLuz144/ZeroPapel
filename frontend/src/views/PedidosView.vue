@@ -274,19 +274,28 @@ async function excluirDoDetalhe(): Promise<void> {
 }
 
 // ── Edição ────────────────────────────────────────────────
+function podeEditar(p: PedidoResponse): boolean {
+  return !p.fechado && p.plataformaPedidoId === null && p.itens.every((it) => it.itemId !== null)
+}
+
 function abrirEdicao(p: PedidoResponse): void {
-  if (p.fechado) return
+  if (!podeEditar(p)) return
+  const linhas: LinhaCarrinho[] = []
+  for (const it of p.itens) {
+    if (it.itemId === null) return
+    linhas.push({
+      itemId: it.itemId,
+      nome: it.itemNome,
+      preco: Number(it.precoUnitario),
+      quantidade: it.quantidade,
+    })
+  }
   interacoes += 1
   editando.value = p
   formPlataformaId.value = p.plataformaId
   formFormaId.value = p.formaDePagamentoId
   formNomeCliente.value = p.nomeCliente ?? ''
-  carrinhoEdicao.value = p.itens.map((it) => ({
-    itemId: it.itemId,
-    nome: it.itemNome,
-    preco: Number(it.precoUnitario),
-    quantidade: it.quantidade,
-  }))
+  carrinhoEdicao.value = linhas
   erroEdicao.value = ''
 }
 
@@ -498,7 +507,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
       >
         Avançar → {{ detalhe ? STATUS_LABEL[proximo(detalhe.status, ehEntrega(detalhe))!] : '' }}
       </BaseButton>
-      <BaseButton v-if="!detalhe?.fechado" variante="fantasma" @click="editarDoDetalhe">
+      <BaseButton v-if="detalhe && podeEditar(detalhe)" variante="fantasma" @click="editarDoDetalhe">
         Editar
       </BaseButton>
       <BaseButton

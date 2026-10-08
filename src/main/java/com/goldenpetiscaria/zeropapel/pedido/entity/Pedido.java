@@ -17,7 +17,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "pedidos")
+@Table(name = "pedidos", uniqueConstraints = @UniqueConstraint(
+        name = "uk_pedidos_plataforma_pedido_id",
+        columnNames = {"plataforma_id", "plataforma_pedido_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -34,6 +36,9 @@ public class Pedido {
     @ManyToOne
     @JoinColumn(name = "plataforma_id", nullable = false)
     private Plataforma plataforma;
+
+    @Column(name = "plataforma_pedido_id")
+    private String plataformaPedidoId;
 
     private String nomeCliente;
 

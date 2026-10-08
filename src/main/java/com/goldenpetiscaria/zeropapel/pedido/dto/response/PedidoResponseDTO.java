@@ -12,6 +12,7 @@ public record PedidoResponseDTO(
         String lojaNome,
         Long plataformaId,
         String plataformaNome,
+        String plataformaPedidoId,
         String nomeCliente,
         LocalDateTime horarioPedido,
         Long formaDePagamentoId,
