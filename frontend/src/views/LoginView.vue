@@ -5,6 +5,7 @@ import BaseField from '@/components/BaseField.vue'
 import BaseButton from '@/components/BaseButton.vue'
 import { authApi, HttpError } from '@/api'
 import { auth } from '@/stores/auth'
+import { ehCaminhoInterno } from '@/utils/rotaInterna'
 
 const router = useRouter()
 const route = useRoute()
@@ -30,7 +31,7 @@ async function entrar(): Promise<void> {
       cargo: r.cargo,
     })
     const redir = route.query.redir
-    router.replace(typeof redir === 'string' ? redir : { name: 'pdv' })
+    router.replace(ehCaminhoInterno(redir) ? redir : { name: 'pdv' })
   } catch (e) {
     erro.value =
       e instanceof HttpError && e.status !== 0

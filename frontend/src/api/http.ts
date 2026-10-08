@@ -1,5 +1,6 @@
 import { auth } from '@/stores/auth'
-import type { ApiError } from './types'
+import router from '@/router'
+import type { LoginResponse } from '@/api/types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 
@@ -15,30 +16,47 @@ export class HttpError extends Error {
 }
 
 function extrairMensagem(status: number, corpo: unknown): string {
-  if (corpo && typeof corpo === 'object' && 'error' in corpo) {
-    return String((corpo as ApiError).error)
+  if (corpo && typeof corpo === 'object') {
+    if ('error' in corpo) return String(corpo.error)
+    const mensagensDeValidacao = Object.values(corpo).filter(
+      (valor): valor is string => typeof valor === 'string',
+    )
+    if (mensagensDeValidacao.length > 0) return mensagensDeValidacao.join('; ')
   }
   if (status === 0) return 'Erro de conexão com o servidor.'
   return `Erro ${status}`
 }
 
-function executar(
+async function executar(
   metodo: string,
   caminho: string,
   corpo: unknown,
   token: string | null,
 ): Promise<Response> {
-  return fetch(BASE + caminho, {
-    method: metodo,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: corpo === undefined ? undefined : JSON.stringify(corpo),
-  })
+  try {
+    return await fetch(BASE + caminho, {
+      method: metodo,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: corpo === undefined ? undefined : JSON.stringify(corpo),
+    })
+  } catch {
+    throw new HttpError(0, null)
+  }
 }
 
-async function renovarSessao(): Promise<boolean> {
+let renovacaoEmAndamento: Promise<boolean> | null = null
+
+function renovarSessao(): Promise<boolean> {
+  renovacaoEmAndamento ??= trocarRefreshToken().finally(() => {
+    renovacaoEmAndamento = null
+  })
+  return renovacaoEmAndamento
+}
+
+async function trocarRefreshToken(): Promise<boolean> {
   if (!auth.estado.refreshToken) return false
   try {
     const res = await fetch(BASE + '/auth/refresh', {
@@ -47,8 +65,8 @@ async function renovarSessao(): Promise<boolean> {
       body: JSON.stringify({ refreshToken: auth.estado.refreshToken }),
     })
     if (!res.ok) return false
-    const dados = (await res.json()) as { token: string; refreshToken: string }
-    auth.atualizarTokens(dados.token, dados.refreshToken)
+    const dados = (await res.json()) as LoginResponse
+    auth.atualizarTokens(dados.token, dados.refreshToken, dados.cargo)
     return true
   } catch {
     return false
@@ -57,29 +75,37 @@ async function renovarSessao(): Promise<boolean> {
 
 let redirecionando = false
 
+function levarAoLogin(): void {
+  if (redirecionando) return
+  redirecionando = true
+  const origem = router.currentRoute.value
+  const destino = origem.meta.publico
+    ? { name: 'login' }
+    : { name: 'login', query: { redir: origem.fullPath } }
+  router.replace(destino).finally(() => {
+    redirecionando = false
+  })
+}
+
+const PREFIXO_DAS_ROTAS_DE_AUTENTICACAO = '/auth/'
+
 /**
  * Wrapper de fetch: injeta o Bearer token, tenta renovar uma vez em caso de 401
  * e, se ainda assim falhar, limpa a sessão e manda para o /login.
  */
 export async function request<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
-  let res: Response
-  try {
-    res = await executar(metodo, caminho, corpo, auth.estado.token)
-  } catch {
-    throw new HttpError(0, null)
-  }
+  const dependeDeSessao = !caminho.startsWith(PREFIXO_DAS_ROTAS_DE_AUTENTICACAO)
+  let res = await executar(metodo, caminho, corpo, auth.estado.token)
 
-  if (res.status === 401 && auth.estado.refreshToken && (await renovarSessao())) {
-    res = await executar(metodo, caminho, corpo, auth.estado.token)
-  }
-
-  if (res.status === 401) {
-    auth.limpar()
-    if (!redirecionando) {
-      redirecionando = true
-      window.location.assign('/login')
+  if (dependeDeSessao && res.status === 401) {
+    if (await renovarSessao()) {
+      res = await executar(metodo, caminho, corpo, auth.estado.token)
     }
-    throw new HttpError(401, { error: 'Sessão expirada. Entre novamente.' })
+    if (res.status === 401) {
+      auth.limpar()
+      levarAoLogin()
+      throw new HttpError(401, { error: 'Sessão expirada. Entre novamente.' })
+    }
   }
 
   if (!res.ok) {

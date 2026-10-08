@@ -55,9 +55,10 @@ export const auth = {
     persistir()
   },
 
-  atualizarTokens(token: string, refreshToken: string): void {
+  atualizarTokens(token: string, refreshToken: string, cargo: Cargo): void {
     estado.token = token
     estado.refreshToken = refreshToken
+    estado.cargo = cargo
     persistir()
   },
 
