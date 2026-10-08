@@ -7,12 +7,17 @@ import com.goldenpetiscaria.zeropapel.usuario.dto.request.CadastrarUsuarioReques
 import com.goldenpetiscaria.zeropapel.usuario.dto.response.UsuarioResponseDTO;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
+import com.goldenpetiscaria.zeropapel.usuario.enumerator.ResultadoUsuarioMaster;
 import com.goldenpetiscaria.zeropapel.usuario.repository.UsuarioRepository;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -20,13 +25,16 @@ public class UsuarioServiceImpl implements UsuarioService {
 
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final Validator validator;
 
     public UsuarioServiceImpl(
             UsuarioRepository usuarioRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            Validator validator
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.validator = validator;
     }
 
     @Override
@@ -94,6 +102,32 @@ public class UsuarioServiceImpl implements UsuarioService {
         usuario.setAtivo(true);
         usuarioRepository.save(usuario);
         log.info("Usuário id={} ativado", id);
+    }
+
+    @Override
+    @Transactional
+    public ResultadoUsuarioMaster criarUsuarioMasterSeNaoHouverUsuarios(String nome, String usuario, String senha) {
+        if (usuarioRepository.count() > 0) {
+            return ResultadoUsuarioMaster.JA_EXISTEM_USUARIOS;
+        }
+        if (emBranco(usuario) || emBranco(senha)) {
+            return ResultadoUsuarioMaster.CREDENCIAIS_AUSENTES;
+        }
+
+        CadastrarUsuarioRequest request = new CadastrarUsuarioRequest(nome, usuario.strip(), senha, Cargo.GERENTE);
+        Set<ConstraintViolation<CadastrarUsuarioRequest>> violacoes = validator.validate(request);
+        if (!violacoes.isEmpty()) {
+            List<String> motivos = violacoes.stream().map(ConstraintViolation::getMessage).sorted().toList();
+            log.error("Usuário master recusado pelas regras do cadastro: {}", motivos);
+            return ResultadoUsuarioMaster.CREDENCIAIS_INVALIDAS;
+        }
+
+        cadastrarUsuario(request);
+        return ResultadoUsuarioMaster.CRIADO;
+    }
+
+    private boolean emBranco(String valor) {
+        return valor == null || valor.isBlank();
     }
 
     private void exigirOutroGerenteAtivo(Usuario usuario) {
