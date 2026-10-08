@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import BaseModal from './BaseModal.vue'
-import BaseButton from './BaseButton.vue'
+import BaseModal from '@/components/BaseModal.vue'
+import BaseButton from '@/components/BaseButton.vue'
 import { useConfirm } from '@/composables/useConfirm'
 
 const { estado, responder } = useConfirm()
