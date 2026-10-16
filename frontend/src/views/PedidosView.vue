@@ -231,8 +231,16 @@ async function mudarStatus(p: PedidoResponse, novo: StatusPedido): Promise<void>
   })
 }
 
+function ehExterno(p: PedidoResponse): boolean {
+  return p.plataformaPedidoId !== null
+}
+
+function podeOperar(p: PedidoResponse): boolean {
+  return !p.fechado && !ehExterno(p)
+}
+
 async function avancar(p: PedidoResponse): Promise<void> {
-  if (p.fechado) return
+  if (!podeOperar(p)) return
   const prox = proximo(p.status, ehEntrega(p))
   if (prox) await mudarStatus(p, prox)
 }
@@ -242,7 +250,7 @@ async function aoEscolherStatus(p: PedidoResponse, evento: Event): Promise<void>
   if (!(alvo instanceof HTMLSelectElement)) return
   const novo = alvo.value
   alvo.value = p.status // desfaz visualmente; a fonte da verdade é o dado
-  if (p.fechado || !ehStatusPedido(novo) || novo === p.status) return
+  if (!podeOperar(p) || !ehStatusPedido(novo) || novo === p.status) return
   await comoAcaoDoUsuario(async () => {
     if (novo === 'CANCELADO') {
       const ok = await confirmar(`Cancelar o pedido #${p.id}?`, {
@@ -275,7 +283,7 @@ async function excluirDoDetalhe(): Promise<void> {
 
 // ── Edição ────────────────────────────────────────────────
 function podeEditar(p: PedidoResponse): boolean {
-  return !p.fechado && p.plataformaPedidoId === null && p.itens.every((it) => it.itemId !== null)
+  return podeOperar(p) && p.itens.every((it) => it.itemId !== null)
 }
 
 function abrirEdicao(p: PedidoResponse): void {
@@ -340,7 +348,7 @@ async function salvarEdicao(): Promise<void> {
 }
 
 async function excluir(p: PedidoResponse): Promise<void> {
-  if (p.fechado) return
+  if (!podeOperar(p)) return
   await comoAcaoDoUsuario(async () => {
     const ok = await confirmar(`Excluir o pedido #${p.id}? Esta ação não pode ser desfeita.`, {
       titulo: 'Excluir pedido',
@@ -419,6 +427,13 @@ async function excluir(p: PedidoResponse): Promise<void> {
                 <span class="tag">{{ p.plataformaNome }}</span>
                 <span class="tag tag--fraca">{{ p.formaDePagamentoNome }}</span>
                 <span v-if="p.fechado" class="badge">Fechado</span>
+                <span
+                  v-if="ehExterno(p)"
+                  class="badge"
+                  title="Pedido recebido de plataforma externa; o status é atualizado pela plataforma"
+                >
+                  Externo
+                </span>
               </div>
               <div class="pedido-card__itens">{{ resumoItens(p) }}</div>
               <div class="pedido-card__rodape">
@@ -427,7 +442,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
               </div>
             </button>
 
-            <div v-if="!p.fechado" class="pedido-card__acoes">
+            <div v-if="podeOperar(p)" class="pedido-card__acoes">
               <button
                 v-if="proximo(p.status, ehEntrega(p))"
                 type="button"
@@ -471,6 +486,15 @@ async function excluir(p: PedidoResponse): Promise<void> {
         <template v-if="detalhe.fechado">
           · <span class="badge">Fechado</span>
         </template>
+        <template v-if="ehExterno(detalhe)">
+          ·
+          <span
+            class="badge"
+            title="Pedido recebido de plataforma externa; o status é atualizado pela plataforma"
+          >
+            Externo
+          </span>
+        </template>
         · Cliente: {{ detalhe.nomeCliente || '—' }}
       </p>
 
@@ -501,7 +525,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
     <template #acoes>
       <BaseButton variante="fantasma" @click="detalhe = null">Fechar</BaseButton>
       <BaseButton
-        v-if="detalhe && !detalhe.fechado && proximo(detalhe.status, ehEntrega(detalhe))"
+        v-if="detalhe && podeOperar(detalhe) && proximo(detalhe.status, ehEntrega(detalhe))"
         variante="fantasma"
         @click="avancar(detalhe)"
       >
@@ -511,7 +535,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
         Editar
       </BaseButton>
       <BaseButton
-        v-if="auth.isGerente && !detalhe?.fechado"
+        v-if="auth.isGerente && detalhe && podeOperar(detalhe)"
         variante="perigo"
         @click="excluirDoDetalhe"
       >

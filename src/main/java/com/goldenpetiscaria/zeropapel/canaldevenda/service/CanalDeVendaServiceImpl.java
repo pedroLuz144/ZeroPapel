@@ -49,6 +49,9 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
         canal.setPlataforma(plataforma);
         canal.setTaxaPercentual(request.taxaPercentual());
         canal.setMerchantId(merchantId);
+        if (request.tratamentoTaxaEntrega() != null) {
+            canal.setTratamentoTaxaEntrega(request.tratamentoTaxaEntrega());
+        }
         return toDTO(canalDeVendaRepository.save(canal));
     }
 
@@ -74,6 +77,9 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
             recusarMerchantIdDeOutroCanal(merchantId, id);
             canal.setMerchantId(merchantId);
         }
+        if (request.tratamentoTaxaEntrega() != null) {
+            canal.setTratamentoTaxaEntrega(request.tratamentoTaxaEntrega());
+        }
         if (request.ativo() != null) {
             canal.setAtivo(request.ativo());
         }
@@ -92,6 +98,23 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
         CanalDeVenda canal = canalDeVendaRepository.findByLojaIdAndPlataformaId(lojaId, plataformaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException(
                         "Canal de venda não encontrado para a loja e a plataforma informadas"));
+        return exigirAtivo(canal);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CanalDeVenda buscarCanalAtivoPorMerchantId(String merchantId) {
+        String normalizado = normalizarMerchantId(merchantId);
+        if (normalizado == null) {
+            throw new RecursoNaoEncontradoException("Canal de venda não encontrado: merchantId não informado");
+        }
+        CanalDeVenda canal = canalDeVendaRepository.findByMerchantId(normalizado)
+                .orElseThrow(() -> new RecursoNaoEncontradoException(
+                        "Canal de venda não encontrado para o merchantId informado"));
+        return exigirAtivo(canal);
+    }
+
+    private CanalDeVenda exigirAtivo(CanalDeVenda canal) {
         if (!canal.isAtivo() || !canal.getLoja().isAtivo()) {
             throw new ConflitoException("O canal " + canal.getPlataforma().getNome()
                     + " da loja " + canal.getLoja().getNome() + " está inativo");
@@ -130,6 +153,7 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
                 canal.getPlataforma().getNome(),
                 canal.getMerchantId(),
                 canal.getTaxaPercentual(),
+                canal.getTratamentoTaxaEntrega(),
                 canal.isAtivo()
         );
     }

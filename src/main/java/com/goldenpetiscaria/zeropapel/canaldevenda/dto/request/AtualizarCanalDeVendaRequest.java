@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.canaldevenda.dto.request;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 
@@ -11,6 +12,8 @@ public record AtualizarCanalDeVendaRequest(
         BigDecimal taxaPercentual,
 
         String merchantId,
+
+        TratamentoTaxaEntrega tratamentoTaxaEntrega,
 
         Boolean ativo
 ) {}

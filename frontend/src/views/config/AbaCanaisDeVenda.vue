@@ -4,7 +4,12 @@ import BaseButton from '@/components/BaseButton.vue'
 import BaseField from '@/components/BaseField.vue'
 import BaseModal from '@/components/BaseModal.vue'
 import { canaisDeVendaApi, lojasApi, plataformasApi } from '@/api'
-import type { CanalDeVendaResponse, LojaResponse, PlataformaResponse } from '@/api/types'
+import type {
+  CanalDeVendaResponse,
+  LojaResponse,
+  PlataformaResponse,
+  TratamentoTaxaEntrega,
+} from '@/api/types'
 import { percentual } from '@/utils/formato'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -14,7 +19,14 @@ interface FormCanal {
   plataformaId: number | null
   taxaPercentual: string
   merchantId: string
+  tratamentoTaxaEntrega: TratamentoTaxaEntrega
   ativo: boolean
+}
+
+const ROTULOS_TRATAMENTO_ENTREGA: Record<TratamentoTaxaEntrega, string> = {
+  DESCONTAR: 'Descontar da loja',
+  SOMAR: 'Somar ao faturamento',
+  IGNORAR: 'Ignorar',
 }
 
 const toast = useToast()
@@ -35,8 +47,13 @@ const form = reactive<FormCanal>({
   plataformaId: null,
   taxaPercentual: '',
   merchantId: '',
+  tratamentoTaxaEntrega: 'DESCONTAR',
   ativo: true,
 })
+
+const plataformaDeEntrega = computed(
+  () => plataformas.value.find((p) => p.id === form.plataformaId)?.entrega ?? false,
+)
 
 const contagem = computed(() => {
   const n = registros.value.length
@@ -70,6 +87,7 @@ function abrir(registro?: CanalDeVendaResponse): void {
     plataformaId: registro?.plataformaId ?? null,
     taxaPercentual: registro ? String(registro.taxaPercentual) : '',
     merchantId: registro?.merchantId ?? '',
+    tratamentoTaxaEntrega: registro?.tratamentoTaxaEntrega ?? 'DESCONTAR',
     ativo: registro ? registro.ativo : true,
   })
   erroModal.value = ''
@@ -95,6 +113,7 @@ async function salvar(): Promise<void> {
       await canaisDeVendaApi.atualizar(editando.value.id, {
         taxaPercentual: taxa,
         merchantId,
+        tratamentoTaxaEntrega: form.tratamentoTaxaEntrega,
         ativo: form.ativo,
       })
       toast.sucesso('Canal atualizado.')
@@ -104,6 +123,7 @@ async function salvar(): Promise<void> {
         plataformaId: form.plataformaId,
         taxaPercentual: taxa,
         merchantId: merchantId || null,
+        tratamentoTaxaEntrega: form.tratamentoTaxaEntrega,
       })
       toast.sucesso('Canal adicionado.')
     }
@@ -146,7 +166,9 @@ async function excluir(registro: CanalDeVendaResponse): Promise<void> {
     <p class="ajuda">
       Um canal é a operação de uma loja numa plataforma, com a taxa daquele contrato. A taxa vale
       só para vendas novas. O <em>merchant ID</em> é o identificador da loja na plataforma externa
-      (iFood) e fica em branco no Balcão.
+      (iFood) e fica em branco no Balcão. A <em>entrega pela plataforma</em> diz o que fazer com a
+      taxa de entrega quando quem entregou foi a plataforma; quando a própria loja entrega, a taxa
+      paga pelo cliente sempre soma ao faturamento.
     </p>
 
     <div class="tabela-scroll">
@@ -157,19 +179,21 @@ async function excluir(registro: CanalDeVendaResponse): Promise<void> {
             <th>Plataforma</th>
             <th class="num">Taxa</th>
             <th>Merchant ID</th>
+            <th>Entrega pela plataforma</th>
             <th>Situação</th>
             <th aria-label="ações"></th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="registros.length === 0 && !erro">
-            <td colspan="6" class="tabela__vazio">Nenhum canal de venda cadastrado.</td>
+            <td colspan="7" class="tabela__vazio">Nenhum canal de venda cadastrado.</td>
           </tr>
           <tr v-for="r in registros" :key="r.id">
             <td>{{ r.lojaNome }}</td>
             <td>{{ r.plataformaNome }}</td>
             <td class="num">{{ percentual(r.taxaPercentual) }}</td>
             <td>{{ r.merchantId ?? '—' }}</td>
+            <td>{{ ROTULOS_TRATAMENTO_ENTREGA[r.tratamentoTaxaEntrega] }}</td>
             <td>
               <span class="badge" :class="r.ativo ? 'badge--on' : 'badge--off'">
                 {{ r.ativo ? 'Ativo' : 'Inativo' }}
@@ -217,6 +241,17 @@ async function excluir(registro: CanalDeVendaResponse): Promise<void> {
       </BaseField>
       <BaseField rotulo="Merchant ID" dica="Opcional">
         <input v-model="form.merchantId" type="text" placeholder="ID da loja no iFood" />
+      </BaseField>
+      <BaseField
+        v-if="plataformaDeEntrega"
+        rotulo="Taxa de entrega, quando a plataforma entrega"
+        dica="Vale só para vendas novas"
+      >
+        <select v-model="form.tratamentoTaxaEntrega">
+          <option v-for="(rotulo, valor) in ROTULOS_TRATAMENTO_ENTREGA" :key="valor" :value="valor">
+            {{ rotulo }}
+          </option>
+        </select>
       </BaseField>
       <label v-if="editando" class="check">
         <input v-model="form.ativo" type="checkbox" class="check__box" />

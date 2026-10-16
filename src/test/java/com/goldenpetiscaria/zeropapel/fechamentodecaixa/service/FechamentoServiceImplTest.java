@@ -1,10 +1,12 @@
 package com.goldenpetiscaria.zeropapel.fechamentodecaixa.service;
 
 import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.request.RealizarFechamentoRequest;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.FechamentoCaixaListagemDTO;
+import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.FechamentoPorPlataformaDTO;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.FechamentoResponseDTO;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.entity.FechamentoCaixa;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.repository.FechamentoCaixaRepository;
@@ -156,6 +158,62 @@ class FechamentoServiceImplTest {
             assertThat(previa.resumo().faturamentoBruto()).isEqualByComparingTo("100.00");
             assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("15.00");
             assertThat(previa.resumo().faturamentoLiquido()).isEqualByComparingTo("85.00");
+        }
+    }
+
+    @Nested
+    class TaxaDeEntrega {
+
+        @Test
+        void calcularPrevia_descontaAEntrega_comoTaxaDaPlataforma() {
+            CanalDeVenda ifood = canal("iFood", "10.00");
+            FormaDePagamento online = formaDePagamento("iFood online", "0.00");
+            darPedidos(comEntrega(pedido("50.00", ifood, online, 20), "8.00", TratamentoTaxaEntrega.DESCONTAR));
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().faturamentoBruto()).isEqualByComparingTo("50.00");
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("13.00");
+            assertThat(previa.resumo().faturamentoLiquido()).isEqualByComparingTo("37.00");
+            FechamentoPorPlataformaDTO porIfood = previa.porPlataforma().getFirst();
+            assertThat(porIfood.taxaPlataforma()).isEqualByComparingTo("13.00");
+            assertThat(porIfood.liquido()).isEqualByComparingTo("37.00");
+        }
+
+        @Test
+        void calcularPrevia_somaAEntregaAoBruto_eCobraATaxaDePagamentoSobreElaMasNaoAComissao() {
+            CanalDeVenda ifood = canal("iFood", "10.00");
+            FormaDePagamento credito = formaDePagamento("Credito", "2.00");
+            darPedidos(comEntrega(pedido("50.00", ifood, credito, 20), "5.00", TratamentoTaxaEntrega.SOMAR));
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().faturamentoBruto()).isEqualByComparingTo("55.00");
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("6.10");
+            assertThat(previa.resumo().faturamentoLiquido()).isEqualByComparingTo("48.90");
+            assertThat(previa.resumo().ticketMedio()).isEqualByComparingTo("55.00");
+            assertThat(previa.porPlataforma().getFirst().bruto()).isEqualByComparingTo("55.00");
+            assertThat(previa.porFormaDePagamento().getFirst().bruto()).isEqualByComparingTo("55.00");
+            assertThat(previa.porFormaDePagamento().getFirst().taxa()).isEqualByComparingTo("1.10");
+            assertThat(previa.pedidosPorHora().getFirst().faturamentoBruto()).isEqualByComparingTo("55.00");
+        }
+
+        @Test
+        void calcularPrevia_naoMexeNoCaixa_quandoAEntregaEIgnorada() {
+            CanalDeVenda ifood = canal("iFood", "10.00");
+            FormaDePagamento online = formaDePagamento("iFood online", "0.00");
+            darPedidos(comEntrega(pedido("50.00", ifood, online, 20), "8.00", TratamentoTaxaEntrega.IGNORAR));
+
+            FechamentoResponseDTO previa = service.calcularPrevia(DE, ATE);
+
+            assertThat(previa.resumo().faturamentoBruto()).isEqualByComparingTo("50.00");
+            assertThat(previa.resumo().totalTaxas()).isEqualByComparingTo("5.00");
+        }
+
+        private Pedido comEntrega(Pedido pedido, String taxaEntrega, TratamentoTaxaEntrega tratamento) {
+            pedido.setTaxaEntrega(new BigDecimal(taxaEntrega));
+            pedido.setTratamentoTaxaEntrega(tratamento);
+            return pedido;
         }
     }
 

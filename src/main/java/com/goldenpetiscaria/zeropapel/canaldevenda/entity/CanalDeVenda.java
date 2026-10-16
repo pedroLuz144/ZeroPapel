@@ -1,13 +1,16 @@
 package com.goldenpetiscaria.zeropapel.canaldevenda.entity;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 
@@ -38,6 +41,11 @@ public class CanalDeVenda {
 
     @Column(name = "taxa_percentual", nullable = false, precision = 5, scale = 2)
     private BigDecimal taxaPercentual;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "tratamento_taxa_entrega", nullable = false, length = 20)
+    private TratamentoTaxaEntrega tratamentoTaxaEntrega = TratamentoTaxaEntrega.DESCONTAR;
 
     @Column(nullable = false)
     private boolean ativo = true;

@@ -1,6 +1,7 @@
 package com.goldenpetiscaria.zeropapel.pedido.service;
 
 import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.canaldevenda.service.CanalDeVendaService;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
@@ -13,6 +14,7 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.response.ItemPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.ResultadoStatusExterno;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
@@ -23,6 +25,7 @@ import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamen
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +36,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+@Slf4j
 @Service
 public class PedidoServiceImpl implements PedidoService {
 
@@ -59,8 +63,8 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional
     public PedidoResponseDTO registrarPedido(AdicionarPedidoRequest request) {
-        Pedido pedido = abrirPedido(request.lojaId(), request.plataformaId(), request.formaDePagamentoId(),
-                request.nomeCliente(), LocalDateTime.now());
+        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(request.lojaId(), request.plataformaId());
+        Pedido pedido = abrirPedido(canal, request.formaDePagamentoId(), request.nomeCliente(), LocalDateTime.now());
 
         return salvarComItens(pedido, montarItensPedido(request.itens(), pedido));
     }
@@ -77,9 +81,10 @@ public class PedidoServiceImpl implements PedidoService {
         }
 
         LocalDateTime horarioPedido = request.horarioPedido() != null ? request.horarioPedido() : LocalDateTime.now();
-        Pedido pedido = abrirPedido(request.lojaId(), request.plataformaId(), request.formaDePagamentoId(),
-                request.nomeCliente(), horarioPedido);
+        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(request.lojaId(), request.plataformaId());
+        Pedido pedido = abrirPedido(canal, request.formaDePagamentoId(), request.nomeCliente(), horarioPedido);
         pedido.setPlataformaPedidoId(request.plataformaPedidoId());
+        congelarTaxaEntrega(pedido, canal, request.taxaEntrega(), request.entregaPelaPlataforma());
 
         return salvarComItens(pedido, montarItensExternos(request.itens(), pedido));
     }
@@ -107,10 +112,7 @@ public class PedidoServiceImpl implements PedidoService {
     @Transactional
     public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
         Pedido pedido = buscarAlteravel(id);
-        if (pedido.getPlataformaPedidoId() != null) {
-            throw new ConflitoException(
-                    "Pedido vindo de plataforma externa não pode ser editado; só o status pode mudar");
-        }
+        recusarPedidoExterno(pedido, "Pedido vindo de plataforma externa não pode ser editado");
 
         if (request.plataformaId() != null
                 && !request.plataformaId().equals(pedido.getPlataforma().getId())) {
@@ -145,6 +147,8 @@ public class PedidoServiceImpl implements PedidoService {
     @Transactional
     public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status) {
         Pedido pedido = buscarAlteravel(id);
+        recusarPedidoExterno(pedido,
+                "Pedido vindo de plataforma externa tem o status definido pela plataforma; não pode ser alterado pelo painel");
         pedido.setStatus(status);
         return toDTO(pedidoRepository.save(pedido));
     }
@@ -153,7 +157,44 @@ public class PedidoServiceImpl implements PedidoService {
     @Transactional
     public void excluirPedido(Long id) {
         Pedido pedido = buscarAlteravel(id);
+        recusarPedidoExterno(pedido,
+                "Pedido vindo de plataforma externa não pode ser excluído; o cancelamento vem da plataforma");
         pedidoRepository.delete(pedido);
+    }
+
+    @Override
+    @Transactional
+    public ResultadoStatusExterno aplicarStatusExterno(Long plataformaId, String plataformaPedidoId, StatusPedido status) {
+        if (plataformaId == null || plataformaPedidoId == null || plataformaPedidoId.isBlank() || status == null) {
+            throw new RequisicaoInvalidaException(
+                    "Plataforma, identificador do pedido na plataforma e status são obrigatórios");
+        }
+
+        Optional<Pedido> encontrado = pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(
+                plataformaId, plataformaPedidoId);
+        if (encontrado.isEmpty()) {
+            return ResultadoStatusExterno.PEDIDO_NAO_ENCONTRADO;
+        }
+
+        Pedido pedido = encontrado.get();
+        if (pedido.isFechado()) {
+            log.warn("Status externo ignorado em pedido já fechado: plataforma={}, pedidoNaPlataforma={}, statusAtual={}, statusRecebido={}",
+                    plataformaId, plataformaPedidoId, pedido.getStatus(), status);
+            return ResultadoStatusExterno.PEDIDO_FECHADO;
+        }
+        if (!pedido.getStatus().podeAvancarPara(status)) {
+            return ResultadoStatusExterno.IGNORADO;
+        }
+
+        pedido.setStatus(status);
+        pedidoRepository.save(pedido);
+        return ResultadoStatusExterno.APLICADO;
+    }
+
+    private void recusarPedidoExterno(Pedido pedido, String mensagem) {
+        if (pedido.getPlataformaPedidoId() != null) {
+            throw new ConflitoException(mensagem);
+        }
     }
 
     private Pedido buscarAlteravel(Long id) {
@@ -177,9 +218,8 @@ public class PedidoServiceImpl implements PedidoService {
         }
     }
 
-    private Pedido abrirPedido(Long lojaId, Long plataformaId, Long formaDePagamentoId,
+    private Pedido abrirPedido(CanalDeVenda canal, Long formaDePagamentoId,
                                String nomeCliente, LocalDateTime horarioPedido) {
-        CanalDeVenda canal = canalDeVendaService.buscarCanalAtivo(lojaId, plataformaId);
         FormaDePagamento formaDePagamento = buscarFormaDePagamento(formaDePagamentoId);
 
         Pedido pedido = new Pedido();
@@ -192,6 +232,17 @@ public class PedidoServiceImpl implements PedidoService {
         pedido.setHorarioPedido(horarioPedido);
         pedido.setStatus(StatusPedido.EM_ABERTO);
         return pedido;
+    }
+
+    private void congelarTaxaEntrega(Pedido pedido, CanalDeVenda canal, BigDecimal taxaEntrega,
+                                     boolean entregaPelaPlataforma) {
+        if (taxaEntrega == null || taxaEntrega.signum() == 0) {
+            return;
+        }
+        pedido.setTaxaEntrega(taxaEntrega);
+        pedido.setTratamentoTaxaEntrega(entregaPelaPlataforma
+                ? canal.getTratamentoTaxaEntrega()
+                : TratamentoTaxaEntrega.SOMAR);
     }
 
     private PedidoResponseDTO salvarComItens(Pedido pedido, List<ItemPedido> itensPedido) {

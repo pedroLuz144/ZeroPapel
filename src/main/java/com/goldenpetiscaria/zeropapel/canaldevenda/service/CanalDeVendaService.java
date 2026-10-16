@@ -13,4 +13,5 @@ public interface CanalDeVendaService {
     CanalDeVendaResponseDTO atualizarCanal(Long id, AtualizarCanalDeVendaRequest request);
     void excluirCanal(Long id);
     CanalDeVenda buscarCanalAtivo(Long lojaId, Long plataformaId);
+    CanalDeVenda buscarCanalAtivoPorMerchantId(String merchantId);
 }
