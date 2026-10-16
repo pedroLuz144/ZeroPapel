@@ -144,6 +144,8 @@ export interface AtualizarLojaRequest {
 }
 
 // ── Canal de venda (loja × plataforma) ────────────────────
+export type TratamentoTaxaEntrega = 'DESCONTAR' | 'SOMAR' | 'IGNORAR'
+
 export interface CanalDeVendaResponse {
   id: number
   lojaId: number
@@ -152,6 +154,7 @@ export interface CanalDeVendaResponse {
   plataformaNome: string
   merchantId: string | null
   taxaPercentual: number
+  tratamentoTaxaEntrega: TratamentoTaxaEntrega
   ativo: boolean
 }
 
@@ -160,11 +163,13 @@ export interface AdicionarCanalDeVendaRequest {
   plataformaId: number
   taxaPercentual: number
   merchantId?: string | null
+  tratamentoTaxaEntrega?: TratamentoTaxaEntrega
 }
 
 export interface AtualizarCanalDeVendaRequest {
   taxaPercentual?: number
   merchantId?: string
+  tratamentoTaxaEntrega?: TratamentoTaxaEntrega
   ativo?: boolean
 }
 

@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.fechamentodecaixa.service;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.request.RealizarFechamentoRequest;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.*;
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.entity.FechamentoCaixa;
@@ -148,8 +149,10 @@ public class FechamentoServiceImpl implements FechamentoService {
         BigDecimal totalTaxas = BigDecimal.ZERO;
 
         for (Pedido pedido : pedidos) {
-            faturamentoBruto = faturamentoBruto.add(pedido.getValor());
-            totalTaxas = totalTaxas.add(calcularTaxaPlataforma(pedido)).add(calcularTaxaPagamento(pedido));
+            faturamentoBruto = faturamentoBruto.add(valorRecebido(pedido));
+            totalTaxas = totalTaxas.add(calcularTaxaPlataforma(pedido))
+                    .add(calcularTaxaPagamento(pedido))
+                    .add(entregaDescontada(pedido));
         }
 
         BigDecimal faturamentoLiquido = faturamentoBruto.subtract(totalTaxas);
@@ -178,8 +181,8 @@ public class FechamentoServiceImpl implements FechamentoService {
             for (Pedido pedido : pedidos) {
                 if (pedido.getPlataforma().getNome().equals(nomePlataforma)) {
                     quantidadeDePedidos++;
-                    bruto = bruto.add(pedido.getValor());
-                    taxaPlataforma = taxaPlataforma.add(calcularTaxaPlataforma(pedido));
+                    bruto = bruto.add(valorRecebido(pedido));
+                    taxaPlataforma = taxaPlataforma.add(calcularTaxaPlataforma(pedido)).add(entregaDescontada(pedido));
                     taxaPagamento = taxaPagamento.add(calcularTaxaPagamento(pedido));
                 }
             }
@@ -222,7 +225,7 @@ public class FechamentoServiceImpl implements FechamentoService {
             for (Pedido pedido : pedidos) {
                 if (pedido.getFormaDePagamento().getNome().equals(nomeFormaDePagamento)) {
                     quantidadeDePedidos++;
-                    bruto = bruto.add(pedido.getValor());
+                    bruto = bruto.add(valorRecebido(pedido));
                     taxa = taxa.add(calcularTaxaPagamento(pedido));
                 }
             }
@@ -299,7 +302,7 @@ public class FechamentoServiceImpl implements FechamentoService {
             for (Pedido pedido : pedidos) {
                 if (pedido.getHorarioPedido().getHour() == hora) {
                     quantidadeDePedidos++;
-                    faturamentoDaHora = faturamentoDaHora.add(pedido.getValor());
+                    faturamentoDaHora = faturamentoDaHora.add(valorRecebido(pedido));
                 }
             }
 
@@ -333,7 +336,21 @@ public class FechamentoServiceImpl implements FechamentoService {
     }
 
     private BigDecimal calcularTaxaPagamento(Pedido pedido) {
-        return calcularTaxa(pedido.getValor(), pedido.getTaxaPagamentoPercentual());
+        return calcularTaxa(valorRecebido(pedido), pedido.getTaxaPagamentoPercentual());
+    }
+
+    private BigDecimal valorRecebido(Pedido pedido) {
+        if (pedido.getTratamentoTaxaEntrega() == TratamentoTaxaEntrega.SOMAR) {
+            return pedido.getValor().add(pedido.getTaxaEntrega());
+        }
+        return pedido.getValor();
+    }
+
+    private BigDecimal entregaDescontada(Pedido pedido) {
+        if (pedido.getTratamentoTaxaEntrega() == TratamentoTaxaEntrega.DESCONTAR) {
+            return pedido.getTaxaEntrega();
+        }
+        return BigDecimal.ZERO;
     }
 
     private BigDecimal calcularTaxa(BigDecimal valor, BigDecimal percentual) {

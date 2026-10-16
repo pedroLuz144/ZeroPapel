@@ -1,6 +1,7 @@
 package com.goldenpetiscaria.zeropapel.pedido.service;
 
 import com.goldenpetiscaria.zeropapel.canaldevenda.entity.CanalDeVenda;
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.canaldevenda.service.CanalDeVendaService;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
@@ -18,6 +19,7 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoR
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.ResultadoStatusExterno;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
@@ -31,9 +33,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -353,7 +359,7 @@ class PedidoServiceImplTest {
             LocalDateTime horarioNoIfood = LocalDateTime.of(2026, 10, 7, 20, 15);
 
             PedidoResponseDTO resposta = service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, "Maria", 2L, horarioNoIfood,
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, "Maria", 2L, horarioNoIfood, null, false,
                     List.of(new ItemPedidoExternoRequest("X-Burger Promo", 2, new BigDecimal("24.90")),
                             new ItemPedidoExternoRequest("Refrigerante Lata", 1, new BigDecimal("6.00")))));
 
@@ -412,7 +418,7 @@ class PedidoServiceImplTest {
             LocalDateTime antes = LocalDateTime.now();
 
             service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null,
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, null, false,
                     List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00")))));
 
             assertThat(capturarSalvo().getHorarioPedido()).isBetween(antes, LocalDateTime.now());
@@ -440,7 +446,7 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedidoExterno_lancaRequisicaoInvalida_quandoOIdNaPlataformaEstaEmBranco() {
             assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    LOJA_ID, IFOOD_ID, "  ", null, 2L, null,
+                    LOJA_ID, IFOOD_ID, "  ", null, 2L, null, null, false,
                     List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00"))))))
                     .isInstanceOf(RequisicaoInvalidaException.class)
                     .hasMessageContaining("identificador do pedido na plataforma");
@@ -451,7 +457,7 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedidoExterno_lancaRequisicaoInvalida_quandoNaoHaItens() {
             assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, List.of())))
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, null, false, List.of())))
                     .isInstanceOf(RequisicaoInvalidaException.class)
                     .hasMessageContaining("pelo menos um item");
 
@@ -462,7 +468,7 @@ class PedidoServiceImplTest {
         @DisplayName("a validacao desce ate o item: quantidade zero, preco negativo e nome em branco")
         void registrarPedidoExterno_lancaRequisicaoInvalida_quandoUmItemEInvalido() {
             assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null,
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, null, false,
                     List.of(new ItemPedidoExternoRequest(" ", 0, new BigDecimal("-1.00"))))))
                     .isInstanceOf(RequisicaoInvalidaException.class)
                     .hasMessageContaining("nome do item")
@@ -475,7 +481,7 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedidoExterno_lancaRequisicaoInvalida_quandoLojaPlataformaOuPagamentoFaltam() {
             assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
-                    null, null, ID_NO_IFOOD, null, null, null,
+                    null, null, ID_NO_IFOOD, null, null, null, null, false,
                     List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00"))))))
                     .isInstanceOf(RequisicaoInvalidaException.class)
                     .hasMessageContaining("loja")
@@ -538,25 +544,261 @@ class PedidoServiceImplTest {
         }
 
         @Test
-        void atualizarStatus_gravaONovoStatus_quandoOPedidoEExterno() {
+        @DisplayName("o status do pedido externo vem da plataforma, nao do kanban")
+        void atualizarStatus_lancaConflito_quandoOPedidoEExterno() {
             Pedido externo = pedidoExterno();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
-            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
-            PedidoResponseDTO resposta = service.atualizarStatus(1L, StatusPedido.CANCELADO);
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("plataforma externa");
 
-            assertThat(externo.getStatus()).isEqualTo(StatusPedido.CANCELADO);
-            assertThat(resposta.plataformaPedidoId()).isEqualTo(ID_NO_IFOOD);
+            assertThat(externo.getStatus()).isEqualTo(StatusPedido.EM_ABERTO);
+            verify(pedidoRepository, never()).save(any());
         }
 
         @Test
-        void excluirPedido_excluiNormalmente_quandoOPedidoEExternoENaoFoiFechado() {
+        void excluirPedido_lancaConflito_quandoOPedidoEExterno() {
             Pedido externo = pedidoExterno();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
 
-            service.excluirPedido(1L);
+            assertThatThrownBy(() -> service.excluirPedido(1L))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("plataforma externa");
 
-            verify(pedidoRepository).delete(externo);
+            verify(pedidoRepository, never()).delete(any());
+        }
+
+        @Test
+        @DisplayName("pedido externo ja fechado responde pela regra do fechamento, que vem antes")
+        void atualizarStatus_recusaPeloFechamento_quandoOPedidoExternoJaFoiFechado() {
+            Pedido externo = pedidoExterno();
+            externo.setFechado(true);
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("fechamento de caixa");
+        }
+    }
+
+    @Nested
+    class TaxaDeEntrega {
+
+        @Test
+        void registrarPedidoExterno_congelaORegraDoCanal_quandoAPlataformaEntregou() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+            ifood.setTratamentoTaxaEntrega(TratamentoTaxaEntrega.DESCONTAR);
+
+            Pedido salvo = registrarComEntrega(ifood, new BigDecimal("7.99"), true);
+            ifood.setTratamentoTaxaEntrega(TratamentoTaxaEntrega.IGNORAR);
+
+            assertThat(salvo.getTaxaEntrega()).isEqualByComparingTo("7.99");
+            assertThat(salvo.getTratamentoTaxaEntrega()).isEqualTo(TratamentoTaxaEntrega.DESCONTAR);
+            assertThat(salvo.getValor()).isEqualByComparingTo("19.00");
+        }
+
+        @Test
+        void registrarPedidoExterno_usaARegraIgnorarDoCanal_quandoAPlataformaEntregou() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+            ifood.setTratamentoTaxaEntrega(TratamentoTaxaEntrega.IGNORAR);
+
+            Pedido salvo = registrarComEntrega(ifood, new BigDecimal("5.00"), true);
+
+            assertThat(salvo.getTaxaEntrega()).isEqualByComparingTo("5.00");
+            assertThat(salvo.getTratamentoTaxaEntrega()).isEqualTo(TratamentoTaxaEntrega.IGNORAR);
+        }
+
+        @Test
+        void registrarPedidoExterno_somaAEntrega_quandoALojaEntregou() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+            ifood.setTratamentoTaxaEntrega(TratamentoTaxaEntrega.DESCONTAR);
+
+            Pedido salvo = registrarComEntrega(ifood, new BigDecimal("5.00"), false);
+
+            assertThat(salvo.getTaxaEntrega()).isEqualByComparingTo("5.00");
+            assertThat(salvo.getTratamentoTaxaEntrega()).isEqualTo(TratamentoTaxaEntrega.SOMAR);
+        }
+
+        @Test
+        void registrarPedidoExterno_ignoraAEntrega_quandoNaoHaTaxa() {
+            CanalDeVenda ifood = canal(IFOOD_ID, "iFood", "12.00");
+
+            Pedido semTaxa = registrarComEntrega(ifood, null, true);
+
+            assertThat(semTaxa.getTaxaEntrega()).isEqualByComparingTo("0");
+            assertThat(semTaxa.getTratamentoTaxaEntrega()).isEqualTo(TratamentoTaxaEntrega.IGNORAR);
+        }
+
+        @Test
+        void registrarPedidoExterno_lancaRequisicaoInvalida_quandoATaxaDeEntregaENegativa() {
+            assertThatThrownBy(() -> service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, new BigDecimal("-1.00"), true,
+                    List.of(new ItemPedidoExternoRequest("X-Burger", 1, new BigDecimal("20.00"))))))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("taxa de entrega");
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        void registrarPedido_naoTemTaxaDeEntrega() {
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
+            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
+            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.50")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.registrarPedido(new AdicionarPedidoRequest(
+                    LOJA_ID, 1L, "Pedro", 2L, List.of(new ItemPedidoRequest(3L, 1))));
+
+            Pedido salvo = capturarSalvo();
+            assertThat(salvo.getTaxaEntrega()).isEqualByComparingTo("0");
+            assertThat(salvo.getTratamentoTaxaEntrega()).isEqualTo(TratamentoTaxaEntrega.IGNORAR);
+        }
+
+        private Pedido registrarComEntrega(CanalDeVenda canal, BigDecimal taxaEntrega, boolean entregaPelaPlataforma) {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+            when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal);
+            when(formaDePagamentoRepository.findById(2L))
+                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
+                    LOJA_ID, IFOOD_ID, ID_NO_IFOOD, null, 2L, null, taxaEntrega, entregaPelaPlataforma,
+                    List.of(new ItemPedidoExternoRequest("X-Burger", 2, new BigDecimal("9.50")))));
+            return capturarSalvo();
+        }
+    }
+
+    @Nested
+    class StatusExterno {
+
+        @Test
+        @DisplayName("o evento de status pode chegar antes do pedido")
+        void aplicarStatusExterno_devolveNaoEncontrado_quandoOPedidoAindaNaoExiste() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.empty());
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.ACEITO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.PEDIDO_NAO_ENCONTRADO);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        @ExtendWith(OutputCaptureExtension.class)
+        @DisplayName("evento tardio em pedido fechado nao altera nada, nao lanca e so gera WARN")
+        void aplicarStatusExterno_naoAlteraELoga_quandoOPedidoJaFoiFechado(CapturedOutput saida) {
+            Pedido fechado = pedidoExternoCom(StatusPedido.EM_ROTA);
+            fechado.setFechado(true);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(fechado));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CANCELADO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.PEDIDO_FECHADO);
+            assertThat(fechado.getStatus()).isEqualTo(StatusPedido.EM_ROTA);
+            verify(pedidoRepository, never()).save(any());
+            assertThat(saida.getOut())
+                    .contains("WARN")
+                    .contains("plataforma=" + IFOOD_ID)
+                    .contains("pedidoNaPlataforma=" + ID_NO_IFOOD)
+                    .contains("statusAtual=EM_ROTA")
+                    .contains("statusRecebido=CANCELADO");
+        }
+
+        @Test
+        void aplicarStatusExterno_aplica_quandoOStatusEstaAFrenteDoAtual() {
+            Pedido externo = pedidoExternoCom(StatusPedido.EM_ABERTO);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.ACEITO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.APLICADO);
+            assertThat(capturarSalvo().getStatus()).isEqualTo(StatusPedido.ACEITO);
+        }
+
+        @Test
+        @DisplayName("o iFood nao informa todas as etapas: de ACEITO pode ir direto para EM_ROTA")
+        void aplicarStatusExterno_aplica_quandoOStatusPulaEtapas() {
+            Pedido externo = pedidoExternoCom(StatusPedido.ACEITO);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.EM_ROTA);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.APLICADO);
+            assertThat(externo.getStatus()).isEqualTo(StatusPedido.EM_ROTA);
+        }
+
+        @Test
+        @DisplayName("evento fora de ordem nao faz o pedido andar para tras")
+        void aplicarStatusExterno_ignora_quandoOStatusEstaAtrasDoAtual() {
+            Pedido externo = pedidoExternoCom(StatusPedido.EM_ROTA);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.ACEITO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.IGNORADO);
+            assertThat(externo.getStatus()).isEqualTo(StatusPedido.EM_ROTA);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("evento repetido nao regrava o mesmo status")
+        void aplicarStatusExterno_ignora_quandoOStatusEOMesmo() {
+            Pedido externo = pedidoExternoCom(StatusPedido.ACEITO);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.ACEITO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.IGNORADO);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = StatusPedido.class, names = {"CONCLUIDO", "CANCELADO"})
+        @DisplayName("CONCLUIDO e CANCELADO sao terminais: nem cancelamento nem conclusao os alteram")
+        void aplicarStatusExterno_ignora_quandoOPedidoEstaEmStatusTerminal(StatusPedido terminal) {
+            Pedido externo = pedidoExternoCom(terminal);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            assertThat(service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CANCELADO))
+                    .isEqualTo(ResultadoStatusExterno.IGNORADO);
+            assertThat(service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CONCLUIDO))
+                    .isEqualTo(ResultadoStatusExterno.IGNORADO);
+
+            assertThat(externo.getStatus()).isEqualTo(terminal);
+            verify(pedidoRepository, never()).save(any());
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = StatusPedido.class, names = {"EM_ABERTO", "ACEITO", "EM_PREPARO", "PRONTO", "EM_ROTA"})
+        void aplicarStatusExterno_cancela_aPartirDeQualquerEtapaNaoTerminal(StatusPedido etapa) {
+            Pedido externo = pedidoExternoCom(etapa);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CANCELADO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.APLICADO);
+            assertThat(capturarSalvo().getStatus()).isEqualTo(StatusPedido.CANCELADO);
+        }
+
+        @Test
+        void aplicarStatusExterno_lancaRequisicaoInvalida_quandoFaltaIdentificacaoOuStatus() {
+            assertThatThrownBy(() -> service.aplicarStatusExterno(null, ID_NO_IFOOD, StatusPedido.ACEITO))
+                    .isInstanceOf(RequisicaoInvalidaException.class);
+            assertThatThrownBy(() -> service.aplicarStatusExterno(IFOOD_ID, " ", StatusPedido.ACEITO))
+                    .isInstanceOf(RequisicaoInvalidaException.class);
+            assertThatThrownBy(() -> service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, null))
+                    .isInstanceOf(RequisicaoInvalidaException.class);
+
+            verifyNoInteractions(pedidoRepository);
         }
     }
 
@@ -671,8 +913,14 @@ class PedidoServiceImplTest {
 
     private RegistrarPedidoExternoRequest pedidoExternoValido() {
         return new RegistrarPedidoExternoRequest(LOJA_ID, IFOOD_ID, ID_NO_IFOOD, "Maria", 2L,
-                LocalDateTime.of(2026, 10, 7, 20, 15),
+                LocalDateTime.of(2026, 10, 7, 20, 15), null, false,
                 List.of(new ItemPedidoExternoRequest("X-Burger", 2, new BigDecimal("9.50"))));
+    }
+
+    private Pedido pedidoExternoCom(StatusPedido status) {
+        Pedido pedido = pedidoExterno();
+        pedido.setStatus(status);
+        return pedido;
     }
 
     private Pedido pedidoExterno() {

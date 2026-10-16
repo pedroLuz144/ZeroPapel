@@ -1,18 +1,30 @@
 package com.goldenpetiscaria.zeropapel.pedido.enumerator;
 
-/**
- * Etapas do ciclo de vida de um pedido (kanban do Painel de Pedidos).
- *
- * Fluxo linear: EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO.
- * Pedidos de balcão pulam EM_ROTA (vão de PRONTO direto para CONCLUIDO).
- * CANCELADO é um estado terminal alcançável de qualquer etapa.
- */
 public enum StatusPedido {
-    EM_ABERTO,
-    ACEITO,
-    EM_PREPARO,
-    PRONTO,
-    EM_ROTA,
-    CONCLUIDO,
-    CANCELADO
+    EM_ABERTO(1, false),
+    ACEITO(2, false),
+    EM_PREPARO(3, false),
+    PRONTO(4, false),
+    EM_ROTA(5, false),
+    CONCLUIDO(6, true),
+    CANCELADO(7, true);
+
+    private final int ordemNoCicloDeVida;
+    private final boolean terminal;
+
+    StatusPedido(int ordemNoCicloDeVida, boolean terminal) {
+        this.ordemNoCicloDeVida = ordemNoCicloDeVida;
+        this.terminal = terminal;
+    }
+
+    public boolean ehTerminal() {
+        return terminal;
+    }
+
+    public boolean podeAvancarPara(StatusPedido novo) {
+        if (terminal || novo == null) {
+            return false;
+        }
+        return novo == CANCELADO || novo.ordemNoCicloDeVida > ordemNoCicloDeVida;
+    }
 }

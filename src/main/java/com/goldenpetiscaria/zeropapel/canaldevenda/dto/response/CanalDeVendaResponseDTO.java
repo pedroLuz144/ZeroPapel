@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.canaldevenda.dto.response;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import java.math.BigDecimal;
 
 public record CanalDeVendaResponseDTO(
@@ -10,5 +11,6 @@ public record CanalDeVendaResponseDTO(
         String plataformaNome,
         String merchantId,
         BigDecimal taxaPercentual,
+        TratamentoTaxaEntrega tratamentoTaxaEntrega,
         boolean ativo
 ) {}

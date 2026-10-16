@@ -1,5 +1,6 @@
 package com.goldenpetiscaria.zeropapel.pedido.entity;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
@@ -63,6 +64,14 @@ public class Pedido {
 
     @Column(name = "taxa_pagamento_percentual", nullable = false, precision = 5, scale = 2)
     private BigDecimal taxaPagamentoPercentual;
+
+    @Column(name = "taxa_entrega", nullable = false, precision = 10, scale = 2)
+    private BigDecimal taxaEntrega = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "tratamento_taxa_entrega", nullable = false, length = 20)
+    private TratamentoTaxaEntrega tratamentoTaxaEntrega = TratamentoTaxaEntrega.IGNORAR;
 
     @Column(nullable = false)
     private boolean fechado = false;
