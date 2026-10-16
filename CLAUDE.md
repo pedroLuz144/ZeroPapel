@@ -88,6 +88,22 @@ Build tool: **Maven** (via wrapper `./mvnw`) — não há Gradle neste projeto.
 ./mvnw test -Dtest=ItemServiceImplTest#adicionarItem_criaItemQuandoCategoriaExiste
 ```
 
+### Docker
+
+```bash
+docker compose up -d --build   # aplicação + MariaDB; SPA e API em :8080
+docker compose logs -f app
+docker compose down            # para tudo e mantém o volume zeropapel-mariadb
+```
+
+O `Dockerfile` tem três estágios: build da SPA com `node:22`, jar com `./mvnw package -DskipTests`
+(os testes rodam no CI, e o `CdpApplicationTests` precisaria de banco no build) e imagem final
+`eclipse-temurin:21-jre`, com usuário sem privilégio e `TZ=America/Sao_Paulo`. O fuso importa:
+`LocalDateTime.now()` e o translator do iFood usam o fuso do servidor. O compose lê o `.env`
+(`env_file`), mas sobrescreve `URL_BD` para o host `banco` e `USER_BD` para `root`, cuja senha é a
+`SENHA_BD`. A variável de ambiente real vence o `.env`, como descrito em Environment Setup. O
+`.env` nunca entra na imagem (`.dockerignore`).
+
 ### Frontend (SPA)
 
 The web UI is a Vite + Vue 3 + TypeScript SPA under `frontend/` (see `frontend/README.md`).

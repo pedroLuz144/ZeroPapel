@@ -31,6 +31,21 @@ produção roda um único artefato `.jar`.
 
 ## Como rodar
 
+### Com Docker (aplicação e banco juntos)
+
+Só precisa do Docker. Crie o `.env` a partir do `.env.example` e rode:
+
+```bash
+docker compose up -d --build
+```
+
+A SPA e a API ficam em `http://localhost:8080`, e o MariaDB em `127.0.0.1:3306`. O compose usa o
+`root` do banco com a `SENHA_BD` do `.env` e aponta `URL_BD` para o serviço `banco` por conta
+própria. Os dados ficam no volume `zeropapel-mariadb`: `docker compose down` não apaga nada, e
+`docker compose down -v` apaga tudo.
+
+Para rodar sem Docker:
+
 ### Pré-requisitos
 
 - JDK 21
