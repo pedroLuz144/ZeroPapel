@@ -19,7 +19,7 @@ const modalAberto = ref(false)
 const editando = ref<PlataformaResponse | null>(null)
 const erroModal = ref('')
 const salvando = ref(false)
-const form = reactive({ nome: '', entrega: true })
+const form = reactive({ nome: '', entrega: false })
 
 const contagem = computed(() => {
   const n = registros.value.length
@@ -43,7 +43,7 @@ function abrir(registro?: PlataformaResponse): void {
   editando.value = registro ?? null
   Object.assign(form, {
     nome: registro?.nome ?? '',
-    entrega: registro ? registro.entrega : true,
+    entrega: registro ? registro.entrega : false,
   })
   erroModal.value = ''
   modalAberto.value = true
