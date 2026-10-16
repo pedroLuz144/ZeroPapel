@@ -22,7 +22,6 @@ function mostrar(texto: string, tipo: TipoToast): void {
   setTimeout(() => fechar(id), 4200)
 }
 
-/** Notificações efêmeras no canto da tela — substitui window.alert(). */
 export function useToast() {
   return {
     fila,

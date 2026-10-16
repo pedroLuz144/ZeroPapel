@@ -24,7 +24,6 @@ import java.util.Map;
 
 @Service
 public class FechamentoServiceImpl implements FechamentoService {
-
     private static final BigDecimal CEM = new BigDecimal("100");
 
     private final FechamentoCaixaRepository fechamentoRepository;
@@ -77,7 +76,6 @@ public class FechamentoServiceImpl implements FechamentoService {
         FechamentoCaixa fechamento = fechamentoRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Fechamento não encontrado para o ID informado"));
 
-        // Resumo usa os totais congelados no momento do fechamento
         ResumoFechamentoDTO resumo = new ResumoFechamentoDTO(
                 fechamento.getTotalPedidos(),
                 fechamento.getFaturamentoBruto(),
@@ -86,7 +84,6 @@ public class FechamentoServiceImpl implements FechamentoService {
                 fechamento.getTicketMedio()
         );
 
-        // Breakdowns recalculados a partir dos pedidos do período
         List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(fechamento.getDe(), fechamento.getAte());
         FechamentoResponseDTO breakdowns = calcularFechamento(fechamento.getDe(), fechamento.getAte(), pedidos);
 
@@ -128,7 +125,6 @@ public class FechamentoServiceImpl implements FechamentoService {
             ));
         }
 
-        // Ordena do mais recente para o mais antigo
         resultado.sort((fechamentoA, fechamentoB) -> fechamentoB.geradoEm().compareTo(fechamentoA.geradoEm()));
 
         return resultado;

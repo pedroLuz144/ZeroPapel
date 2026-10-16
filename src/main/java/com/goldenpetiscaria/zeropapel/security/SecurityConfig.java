@@ -26,7 +26,6 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
     private final PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado;
@@ -54,8 +53,6 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/auth/**").permitAll()
-                        // SPA (Vite): shell, rotas de tela e assets estáticos são públicos;
-                        // o acesso aos dados continua protegido nos endpoints de API.
                         .requestMatchers(HttpMethod.GET,
                                 "/", "/index.html", "/login", "/app/**",
                                 "/assets/**", "/favicon.ico").permitAll()

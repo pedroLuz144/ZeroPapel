@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { comSegundos, dataLocalISO, moeda, paraInputDateTime, percentual } from './formato'
 
-/**
- * O Intl separa o símbolo do valor com espaço não-quebrável (U+00A0/U+202F),
- * que não é o espaço comum digitado no teste. Normaliza antes de comparar.
- */
 const semNbsp = (s: string) => s.replace(/[  ]/g, ' ')
 
 describe('moeda', () => {
@@ -28,7 +24,6 @@ describe('percentual', () => {
 
 describe('dataLocalISO', () => {
   it('usa a data local, sem o deslocamento de fuso do toISOString', () => {
-    // 21h em UTC-3 vira o dia seguinte no toISOString; aqui deve continuar dia 30.
     expect(dataLocalISO(new Date(2026, 7, 30, 21, 15))).toBe('2026-08-30')
   })
 })

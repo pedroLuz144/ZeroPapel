@@ -22,7 +22,6 @@ import { useConfirm } from '@/composables/useConfirm'
 const toast = useToast()
 const { confirmar } = useConfirm()
 
-// ── Etapas ────────────────────────────────────────────────
 const STATUS_ATIVOS: StatusPedido[] = [
   'EM_ABERTO',
   'ACEITO',
@@ -50,7 +49,6 @@ function proximo(s: StatusPedido, ehEntrega: boolean): StatusPedido | null {
   const i = STATUS_ATIVOS.indexOf(s)
   if (i < 0 || i >= STATUS_ATIVOS.length - 1) return null
   const prox = STATUS_ATIVOS[i + 1]
-  // Balcão não tem "Em rota": pula direto para Concluído.
   return prox === 'EM_ROTA' && !ehEntrega ? 'CONCLUIDO' : prox
 }
 
@@ -61,14 +59,12 @@ function corDot(s: StatusPedido): string {
   return 'var(--cor-texto-fraco)'
 }
 
-// ── Estado ────────────────────────────────────────────────
 const pedidos = ref<PedidoResponse[]>([])
 const plataformas = ref<PlataformaResponse[]>([])
 const canais = ref<CanalDeVendaResponse[]>([])
 const formasPagamento = ref<TaxaResponse[]>([])
 const itens = ref<ItemResponse[]>([])
 
-/** Um pedido é "de entrega" se a plataforma dele tem o flag (default: sim, quando desconhecida). */
 function ehEntrega(p: PedidoResponse): boolean {
   return plataformas.value.find((pl) => pl.id === p.plataformaId)?.entrega ?? true
 }
@@ -110,7 +106,6 @@ const carrinhoEdicao = ref<LinhaCarrinho[]>([])
 const erroEdicao = ref('')
 const salvando = ref(false)
 
-// ── Derivados ─────────────────────────────────────────────
 function ehDeHoje(p: PedidoResponse): boolean {
   return p.horarioPedido.slice(0, 10) === dataLocalISO()
 }
@@ -151,7 +146,6 @@ function resumoItens(p: PedidoResponse): string {
   return p.itens.map((it) => `${it.quantidade}× ${it.itemNome}`).join('  ·  ')
 }
 
-// ── Carga ─────────────────────────────────────────────────
 async function carregar(): Promise<void> {
   const carga = ++ultimaCarga
   const interacoesNoInicio = interacoes
@@ -216,7 +210,6 @@ onUnmounted(() => {
   if (timerDeRecarga) clearInterval(timerDeRecarga)
 })
 
-// ── Status ────────────────────────────────────────────────
 async function mudarStatus(p: PedidoResponse, novo: StatusPedido): Promise<void> {
   await comoAcaoDoUsuario(async () => {
     try {
@@ -249,7 +242,7 @@ async function aoEscolherStatus(p: PedidoResponse, evento: Event): Promise<void>
   const alvo = evento.target
   if (!(alvo instanceof HTMLSelectElement)) return
   const novo = alvo.value
-  alvo.value = p.status // desfaz visualmente; a fonte da verdade é o dado
+  alvo.value = p.status
   if (!podeOperar(p) || !ehStatusPedido(novo) || novo === p.status) return
   await comoAcaoDoUsuario(async () => {
     if (novo === 'CANCELADO') {
@@ -263,7 +256,6 @@ async function aoEscolherStatus(p: PedidoResponse, evento: Event): Promise<void>
   })
 }
 
-// ── Detalhe ───────────────────────────────────────────────
 function abrirDetalhe(p: PedidoResponse): void {
   interacoes += 1
   detalhe.value = p
@@ -281,7 +273,6 @@ async function excluirDoDetalhe(): Promise<void> {
   if (p) await excluir(p)
 }
 
-// ── Edição ────────────────────────────────────────────────
 function podeEditar(p: PedidoResponse): boolean {
   return podeOperar(p) && p.itens.every((it) => it.itemId !== null)
 }
@@ -466,7 +457,6 @@ async function excluir(p: PedidoResponse): Promise<void> {
     </div>
   </template>
 
-  <!-- Detalhes -->
   <BaseModal
     :aberto="!!detalhe"
     largo
@@ -544,7 +534,6 @@ async function excluir(p: PedidoResponse): Promise<void> {
     </template>
   </BaseModal>
 
-  <!-- Edição -->
   <BaseModal
     :aberto="!!editando"
     largo
@@ -622,7 +611,6 @@ async function excluir(p: PedidoResponse): Promise<void> {
   box-shadow: 0 0 0 3px var(--cor-ok-superficie);
 }
 
-/* ── Quadro (kanban) ─────────────────────────────────────── */
 .quadro {
   display: flex;
   gap: 14px;
@@ -688,7 +676,6 @@ async function excluir(p: PedidoResponse): Promise<void> {
   padding: 14px 0;
 }
 
-/* ── Card ────────────────────────────────────────────────── */
 .pedido-card {
   border: 1px solid var(--cor-borda);
   border-radius: var(--raio);
@@ -815,7 +802,6 @@ async function excluir(p: PedidoResponse): Promise<void> {
   background-position: right 6px center;
 }
 
-/* ── Modal detalhe ───────────────────────────────────────── */
 .detalhe__meta {
   font-size: 13px;
   color: var(--cor-texto-suave);

@@ -4,7 +4,6 @@ import type { LoginResponse } from '@/api/types'
 
 const BASE = import.meta.env.VITE_API_BASE ?? ''
 
-/** Erro de resposta HTTP já com a mensagem do backend ({ "error": "..." }) resolvida. */
 export class HttpError extends Error {
   constructor(
     readonly status: number,
@@ -89,10 +88,6 @@ function levarAoLogin(): void {
 
 const PREFIXO_DAS_ROTAS_DE_AUTENTICACAO = '/auth/'
 
-/**
- * Wrapper de fetch: injeta o Bearer token, tenta renovar uma vez em caso de 401
- * e, se ainda assim falhar, limpa a sessão e manda para o /login.
- */
 export async function request<T>(metodo: string, caminho: string, corpo?: unknown): Promise<T> {
   const dependeDeSessao = !caminho.startsWith(PREFIXO_DAS_ROTAS_DE_AUTENTICACAO)
   let res = await executar(metodo, caminho, corpo, auth.estado.token)
@@ -113,7 +108,6 @@ export async function request<T>(metodo: string, caminho: string, corpo?: unknow
     try {
       corpoErro = await res.json()
     } catch {
-      /* resposta sem corpo JSON */
     }
     throw new HttpError(res.status, corpoErro)
   }
