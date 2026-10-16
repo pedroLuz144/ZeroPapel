@@ -23,6 +23,11 @@ Início com **duas lojas distintas**, ambas no iFood.
 Não gerenciamos o ciclo de vida do pedido pelo ZeroPapel (não confirmamos/despachamos).
 Apenas ingerimos para métricas e fechamento.
 
+Consequência no painel (decidido em 08/10/2026): **pedido externo não é operado pelo kanban**.
+`atualizarPedido`, `atualizarStatus` e `excluirPedido` recusam pedido com `plataformaPedidoId`
+(409), e a SPA esconde Editar, Avançar, Mudar etapa e Excluir. O status só muda pelos eventos
+da plataforma, via `PedidoService.aplicarStatusExterno`.
+
 > ⚠️ **Risco a validar com o iFood:** confirmar que um consumidor read-only do módulo Order
 > convive com a operação principal (tablet/Gestor de Pedidos) sem que o iFood espere que
 > *nós* respondamos o ciclo de vida do pedido. Validar antes de aprofundar a ingestão.
@@ -79,8 +84,31 @@ Não guardar client secret por canal.
 ### 8. Identidade externa e status no `Pedido`
 - `plataformaPedidoId` — o `orderId` do iFood (nulo para balcão).
 - **unique `(plataforma, plataformaPedidoId)`** — mata a reentrega do polling (upsert, não insert).
-- `status` — `PLACED → CONFIRMED → CONCLUDED / CANCELLED`.
-- **`Pedido` deixa de ser imutável:** a ingestão atualiza o status conforme os eventos chegam.
+- `status` — o `StatusPedido` que já existe, alimentado pelos eventos do iFood. Mapeamento
+  decidido em 08/10/2026 (`integracoes/ifood/enumerator/EventoPedidoIfood`):
+
+  | Evento iFood (`fullCode` / `code`) | `StatusPedido` |
+  |---|---|
+  | `PLACED` / `PLC` | `EM_ABERTO` (é o registro do pedido) |
+  | `CONFIRMED` / `CFM` | `ACEITO` |
+  | `DISPATCHED` / `DSP` | `EM_ROTA` |
+  | `CONCLUDED` / `CON` | `CONCLUIDO` |
+  | `CANCELLED` / `CAN` | `CANCELADO` |
+
+  Qualquer outro evento fica sem equivalente e é ignorado pelo mapeamento. Em aberto, para
+  decidir: `PREPARATION_STARTED` (candidato a `EM_PREPARO`), `READY_TO_PICKUP` (candidato a
+  `PRONTO`), `SEPARATION_STARTED` / `SEPARATION_ENDED` (mercado) e os eventos que não são de
+  ciclo de vida (`CANCELLATION_REQUEST_FAILED`, `DELIVERY_GROUP_ASSIGNED`,
+  `RECOMENDED_START_PREPARATION`).
+- **O status do `Pedido` muda pela ingestão**, por `PedidoService.aplicarStatusExterno`,
+  identificado por `(plataforma, plataformaPedidoId)`. Eventos chegam repetidos e fora de ordem:
+  só é aplicado status à frente do atual no ciclo de vida, ou `CANCELADO`; `CONCLUIDO` e
+  `CANCELADO` são terminais. Evento de pedido que ainda não foi registrado devolve
+  "não encontrado" sem lançar.
+- **Evento tardio em pedido já fechado** (decidido em 08/10/2026): não altera o pedido e não
+  lança; só gera um WARN no log com plataforma, id externo, status atual e status recebido. O
+  histórico fechado continua imutável, inclusive para um `CANCELLED` que chegue depois do
+  fechamento.
 - **Pedido `CANCELLED` não entra no caixa.**
 
 ### 9. Taxa da forma de pagamento não se aplica ao iFood
@@ -96,6 +124,27 @@ Somar as duas num pedido iFood descontaria taxa a mais.
 ### 10. `Plataforma` perde `taxaPercentual`
 A taxa migra para o `CanalDeVenda`. `Plataforma` vira apenas o **tipo de canal** (Balcão, iFood).
 Requer migração dos dados já populados.
+
+### 11. Taxa de entrega: regra no canal, congelada no pedido
+Decidido em 15/10/2026. A loja que vai usar o sistema tem entrega própria e não cobra entrega do
+cliente; quando um pedido do iFood traz `total.deliveryFee`, o mais provável é que a entrega tenha
+sido feita pelo iFood e o valor seja descontado da loja. Mas o pedido de teste do Developer Portal
+veio com `delivery.deliveredBy = MERCHANT` **e** R$ 5 de entrega, então o campo `deliveredBy` é
+quem decide, não a presença da taxa.
+
+- `CanalDeVenda.tratamentoTaxaEntrega` (`DESCONTAR` | `SOMAR` | `IGNORAR`, padrão `DESCONTAR`,
+  editável em Configurações) vale quando **a plataforma** entregou.
+- Quando **a loja** entregou (`deliveredBy = MERCHANT`), a taxa paga pelo cliente é da loja:
+  sempre `SOMAR`. Sem `delivery` ou com `deliveredBy` desconhecido, conta como entrega da
+  plataforma (a regra do canal decide).
+- O pedido guarda `taxaEntrega` e o tratamento **resolvido na venda** (V12), como as outras taxas:
+  trocar a regra do canal depois não reescreve o histórico. Sem taxa, fica `IGNORAR` com zero.
+- A decisão mora em `PedidoServiceImpl.registrarPedidoExterno`; o translator só repassa
+  `total.deliveryFee` e se a entrega foi da plataforma.
+- Fechamento: `SOMAR` entra no bruto e na base da taxa de pagamento (o cliente pagou a entrega
+  pelo mesmo meio), mas **não** na base da comissão do canal; `DESCONTAR` entra em `totalTaxas` e,
+  no agrupamento por plataforma, em `taxaPlataforma`. `Pedido.valor` continua sendo só os itens,
+  e `fechamentos_caixa` não ganhou coluna.
 
 ---
 
@@ -124,6 +173,22 @@ Princípios:
 ---
 
 ## Pendências / a validar
+- [x] Conferir contra a API real os caminhos `events/v1.0/events:polling`,
+      `events/v1.0/events/acknowledgment` e `order/v1.0/orders/{id}`, e os campos lidos do pedido
+      (`createdAt`, `customer.name`, `items[].name|quantity|unitPrice|optionsPrice|totalPrice`).
+      Conferido em 15/10/2026 com um pedido de teste do Developer Portal; ver etapa 4.
+- [x] Forma de pagamento do pedido iFood: **uma só**, fixa em `IFOOD_FORMA_DE_PAGAMENTO_ID` (forma
+      "iFood online" com taxa 0, o que já entrega a decisão 9 sem mexer no fechamento). Decidido em
+      15/10/2026: `payments.methods` não é lido, porque um pedido pode vir pago com mais de um meio
+      (o pedido de teste trouxe dois cartões, R$ 17 + R$ 10) e o `Pedido` tem uma forma só.
+- [x] Linha cujo total não divide exato pela quantidade (ou quantidade fracionada) entra com
+      quantidade 1 e o total como preço. Decidido em 15/10/2026: o dinheiro tem prioridade sobre
+      a quantidade do ranking.
+- [x] Taxa de entrega (`total.deliveryFee`): decisão 11.
+- [ ] Descontos (`total.benefits`) e taxa de serviço do iFood (`additionalFees`, paga pelo cliente
+      ao iFood) continuam fora do valor. Confirmar com o extrato do Financial.
+- [ ] Evento que vira `FALHOU` (canal não cadastrado, por exemplo) só é reprocessado mexendo no
+      banco. Falta uma tela ou endpoint de reprocesso, junto da aba Integrações.
 - [ ] Confirmar no Portal do Desenvolvedor quais módulos estão liberados (assumido: Order disponível).
 - [ ] Validar convivência do consumidor read-only de Order com a operação principal (decisão 2).
 - [ ] Ao considerar o Catalog (fatia futura), inspecionar `GET /orders/{id}` real e verificar se o
@@ -143,10 +208,29 @@ Princípios:
      (decisão 4, V10); `PedidoService.registrarPedidoExterno(RegistrarPedidoExternoRequest)`,
      idempotente pela identidade externa e sem controller; pedido externo recusa edição de
      conteúdo (decisão 2); ranking de itens agrupa item externo pelo nome gravado.
-   - Falta: mapear o status do iFood para o `StatusPedido` que já existe (a parte de status da
-     decisão 8). Hoje o pedido externo entra `EM_ABERTO` e uma reentrega não altera o status.
+   - ✅ Concluído em 08/10/2026: mapeamento do status do iFood para `StatusPedido`
+     (`EventoPedidoIfood`), `PedidoService.aplicarStatusExterno` e recusa de status e exclusão
+     de pedido externo pelo painel (decisões 2 e 8). A reentrega do `PLACED` continua sem
+     alterar o status.
 3. **Fechamento:** regra condicional de taxa (decisão 9) e filtro por loja — hoje fechamento e
    dashboard consolidam todas as lojas juntas. A exclusão de cancelados já existe (`CANCELADO`).
 4. **Ingestão iFood:** auth OAuth (app-level) → polling + ack → inbox → busca pedido → translator → `PedidoService`.
+   - ✅ Pronto em 08/10/2026: auth OAuth do aplicativo Centralizado (`IfoodAutenticador`, token em
+     memória com renovação antecipada; `IFOOD_CLIENT_ID` / `IFOOD_CLIENT_SECRET`), listagem de
+     lojas (`IfoodLojaClient`, para descobrir o Merchant ID) e
+     `CanalDeVendaService.buscarCanalAtivoPorMerchantId` para rotear o evento. Conferido contra a
+     API real: token com `expiresIn` de 21599 s (6 h) e a loja de teste na listagem.
+   - ✅ Escrito em 10/10/2026, coberto por teste unitário e **ainda não rodado contra o iFood
+     real**: polling + acknowledgment (`IfoodEventoClient`, `IfoodPollingJob` com `@Scheduled`,
+     desligado por padrão em `IFOOD_POLLING_ATIVO`), inbox do evento cru (`ifood_evento`, V11),
+     busca do pedido (`IfoodPedidoClient`), `IfoodPedidoTranslator` e `IfoodIngestaoService`,
+     que chama `registrarPedidoExterno` / `aplicarStatusExterno`. Status que chega antes do
+     pedido faz o pedido ser buscado e registrado na hora.
+   - ✅ Validado em 15/10/2026: V11 aplicada e validada pelo Hibernate no MariaDB; contra a loja
+     de teste, o polling recebeu `PLACED` e `CANCELLED`, o pedido foi registrado (2 itens, R$ 21,
+     opcionais embutidos) e cancelado, e o polling seguinte respondeu 204, confirmando o
+     acknowledgment. Taxa de entrega tratada (decisão 11, V12).
+   - Falta: decidir as pendências acima e confirmar a convivência com o Gestor de Pedidos antes
+     de ligar o polling numa loja real.
 5. **Financial (conciliação):** fatia posterior de prova real.
 ```

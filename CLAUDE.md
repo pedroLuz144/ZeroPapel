@@ -13,9 +13,13 @@ Loja, CanalDeVenda (domínio multi-loja, etapa 1 de `docs/integracao-ifood.md`),
 FechamentoCaixa (`POST /fechamento` persiste) e o consolidado em tempo real (`GET /dashboard`),
 além da SPA em `frontend/`. O domínio já recebe pedido de plataforma externa
 (`Pedido.plataformaPedidoId`, `ItemPedido` com item opcional e nome gravado,
-`PedidoService.registrarPedidoExterno`; etapa 2 do mesmo doc), mas ninguém chama essa porta ainda.
-Ainda por vir: Entregador; integração iFood/AnotaAi (branch `feat/ifood`, em andamento: falta a
-ingestão em si e o mapeamento do status do iFood para `StatusPedido`);
+`PedidoService.registrarPedidoExterno` e `aplicarStatusExterno`; etapa 2 do mesmo doc), e
+quem chama essas portas é a ingestão do iFood (`integracoes/ifood/`): autenticação do aplicativo,
+listagem de lojas, mapeamento de evento para `StatusPedido`, polling com acknowledgment, inbox de
+eventos, busca do pedido e translator. O polling vem **desligado** (`IFOOD_POLLING_ATIVO=false`)
+e foi validado em 15/10/2026 só contra a loja de teste do Developer Portal.
+Ainda por vir: Entregador; AnotaAi; ligar a ingestão do iFood numa loja real (branch
+`feat/ifood`);
 fechamento e dashboard filtrados por loja e a regra condicional de taxa por origem (hoje o
 consolidado soma todas as lojas juntas); aba Integrações em Configurações.
 
@@ -57,8 +61,11 @@ só para uso entre services: controller continua devolvendo ResponseDTO.
 `RegistrarPedidoExternoRequest` e delega para `registrarPedidoExterno`. Nunca
 `implements PedidoService`, nunca duplica regra de negócio. Não é o `AdicionarPedidoRequest`
 porque esse é o corpo do `POST /pedidos`: abrir preço e nome livres nele deixaria o operador
-registrar venda de balcão com preço arbitrário.
-(`IfoodClient` hoje viola isso; é stub WIP a ser refatorado.)
+registrar venda de balcão com preço arbitrário. O status vindo de evento entra por
+`PedidoService.aplicarStatusExterno`. Os clients e o translator de `integracoes/ifood/` só falam
+com o iFood e traduzem formato: não injetam repositório nem service de outra feature. Quem compõe
+é `IfoodIngestaoServiceImpl`, que injeta as interfaces `PedidoService` e `CanalDeVendaService` e
+o repositório da própria inbox (`EventoIfoodRepository`).
 
 ## Commands
 
@@ -135,16 +142,26 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (07/10/2026):** 141 testes no Java, todos passando (`./mvnw test`).
+**Estado atual (15/10/2026):** 263 testes no Java, todos passando (`./mvnw test`), mais 2
+ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
-| `FechamentoServiceImplTest` (26) | taxa, taxa congelada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
-| `PedidoServiceImplTest` (35) | congelamento das taxas (a da plataforma vem do canal de venda da loja), imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo) e recusa de edição de pedido externo |
+| `FechamentoServiceImplTest` (29) | taxa, taxa congelada, taxa de entrega somada, descontada ou ignorada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
+| `PedidoServiceImplTest` (56) | congelamento das taxas (a da plataforma vem do canal de venda da loja), taxa de entrega congelada com a regra do canal ou somada quando a loja entregou, imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo); recusa de edição, de mudança de status e de exclusão de pedido externo pelo caminho público; `aplicarStatusExterno` (não encontrado, fechado sem alteração e com WARN, fora de ordem, repetido, terminal, aplica, cancela de qualquer etapa não terminal) |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
 | `UsuarioMasterServiceImplTest` (14) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
-| `CanalDeVendaServiceImplTest` (15) | unicidade loja × plataforma, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos |
+| `CanalDeVendaServiceImplTest` (22) | unicidade loja × plataforma, tratamento da taxa de entrega (padrão e alteração), unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos, busca do canal ativo por `merchantId` |
+| `EventoPedidoIfoodTest` (21) | cada código do iFood (curto e por extenso) no `StatusPedido` decidido; código desconhecido, sem equivalente ou nulo devolve vazio |
+| `IfoodAutenticadorTest` (16) | obtém o token por formulário, reutiliza enquanto vale, renova com margem e depois de expirar (relógio injetado), sem credenciais não chama HTTP, 401/5xx/falha de conexão viram `IntegracaoIfoodException` sem o corpo cru, log sem token nem segredo |
+| `IfoodLojaClientTest` (5) | envia `Authorization: Bearer`, desserializa a lista, 401 descarta o token, erro de servidor, sem credenciais |
+| `IfoodEventoClientTest` (9) | polling envia o Bearer e desserializa cada evento, guarda o JSON cru, 204 vira lista vazia, `createdAt` inválido vira nulo, 401 descarta o token, erro de servidor; acknowledgment envia os ids no corpo, não chama HTTP sem evento, recusa do iFood |
+| `IfoodPedidoClientTest` (3) | busca do pedido desserializa cliente, itens e horário; 404 sem o corpo cru; 401 descarta o token |
+| `IfoodPedidoTranslatorTest` (16) | loja, plataforma, forma de pagamento e identidade externa; taxa de entrega e quem entregou; horário UTC para o fuso da loja; opcional embutido no preço unitário; linha com quantidade 1 quando o total não divide exato ou a quantidade é fracionada; nome limitado e nome padrão; pedido sem id, sem itens ou item sem preço |
+| `IfoodIngestaoServiceImplTest` (18) | inbox: grava evento novo como pendente, confirma só depois de gravar, não regrava reentrega, não confirma se a gravação falha, limita o payload; sem forma de pagamento não chama nada; processamento: `PLACED` registra, status aplica, status antes do pedido registra e aplica, sem equivalente ou sem `orderId` é ignorado, falha do iFood mantém pendente até o limite de tentativas, falha de regra de negócio marca `FALHOU`, uma falha não trava os eventos seguintes |
+| `IfoodPollingJobTest` (3) | recebe e depois processa; falha do polling não impede o processamento; nenhuma exceção escapa do job |
+| `IfoodApiRealTest` (2, ignorados) | chama o iFood de verdade (token + listagem de lojas; polling de eventos **sem** acknowledgment), só leitura; só roda com `IFOOD_TESTE_REAL=true` |
 | `LojaServiceImplTest` (7) | cadastro, nome único, invariante da única loja ativa, loja inexistente |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
@@ -172,6 +189,10 @@ CORS_ALLOWED_ORIGIN=http://localhost:5173
 ADMIN_USUARIO=admin
 ADMIN_SENHA=<senha-do-primeiro-gerente>
 ADMIN_NOME=Administrador
+IFOOD_CLIENT_ID=<client id do aplicativo Centralizado>
+IFOOD_CLIENT_SECRET=<client secret do aplicativo Centralizado>
+IFOOD_POLLING_ATIVO=false
+IFOOD_FORMA_DE_PAGAMENTO_ID=<id da forma de pagamento dos pedidos do iFood>
 ```
 
 The `.env` is loaded by the application itself: `application.properties` has
@@ -188,8 +209,16 @@ The `.env` is loaded by the application itself: `application.properties` has
 - `CORS_ALLOWED_ORIGIN` is a single origin. With `npm run dev` it must be `http://localhost:5173`
   (the browser sends that `Origin` on POST and the Vite proxy does not rewrite it); the SPA served
   from the jar is same-origin and never hits CORS.
-- `ADMIN_*` and `SEED_SENHA` are optional; the other six are required and the app fails to start
-  without them.
+- `ADMIN_*`, `SEED_SENHA` and `IFOOD_*` are optional; the other six are required and the app
+  fails to start without them.
+- `IFOOD_CLIENT_ID` / `IFOOD_CLIENT_SECRET` are the credentials of the **Centralizado** app in the
+  iFood developer portal (app-level, not per store). Blank: the app starts normally and
+  `IfoodAutenticador.obterToken` throws `CredenciaisIfoodAusentesException` without calling iFood.
+  `IFOOD_BASE_URL` is optional and defaults to `https://merchant-api.ifood.com.br`.
+- `IFOOD_POLLING_ATIVO` (default `false`) turns the ingestion job on; `IFOOD_POLLING_INTERVALO_MS`
+  defaults to 30000. `IFOOD_FORMA_DE_PAGAMENTO_ID` is the `FormaDePagamento` stored on every iFood
+  order and is required with the polling on: without it each cycle logs a WARN and does nothing
+  (no polling, no acknowledgment).
 
 Requires a running **MariaDB** instance.
 
@@ -246,7 +275,7 @@ item/                 → itens do cardápio
 
 categoria/            → categorias do cardápio
 pedido/               → pedidos e itens de pedido (Pedido + ItemPedido)
-  enumerator/          → StatusPedido (etapas do kanban)
+  enumerator/          → StatusPedido (etapas do kanban, ordem e terminais), ResultadoStatusExterno
 plataforma/           → tipos de canal (Balcão, iFood, etc.); sem taxa
 loja/                 → lojas (multi-loja); sem DELETE, desativa por `ativo`
 canaldevenda/         → vínculo Loja × Plataforma: merchantId, taxa e ativo
@@ -263,7 +292,19 @@ security/             → JwtFilter, JwtService, SecurityConfig, UsuarioDetailsS
 
 integracoes/          → integrações externas (iFood em andamento, AnotaAi planejado)
   ifood/
-  anotaai/
+    client/           → IfoodAutenticador (token do app em memória), IfoodLojaClient,
+                        IfoodEventoClient (polling + acknowledgment), IfoodPedidoClient
+    config/           → IfoodConfig (RestClient com timeouts, os beans acima, @EnableScheduling)
+    dto/request/      → ConfirmarEventoIfoodRequest
+    dto/response/     → TokenIfoodResponse, LojaIfoodResponse, EventoIfoodResponse, PedidoIfoodResponse
+    entity/           → EventoIfood (inbox, tabela ifood_evento)
+    enumerator/       → EventoPedidoIfood (código do evento → StatusPedido), SituacaoEventoIfood
+    exception/        → IntegracaoIfoodException, CredenciaisIfoodAusentesException
+    job/              → IfoodPollingJob (@Scheduled, só existe com ifood.polling.ativo=true)
+    repository/       → EventoIfoodRepository
+    service/          → IfoodIngestaoService (+ Impl): recebe, confirma e processa os eventos
+    translator/       → IfoodPedidoTranslator (PedidoIfoodResponse → RegistrarPedidoExternoRequest)
+  anotaai/            → ainda não existe
 ```
 
 The web UI lives in `frontend/` (Vite + Vue 3 + TypeScript SPA) and is built into
@@ -326,10 +367,11 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **RefreshToken** — linked to `Usuario`, has expiration; table `refresh_tokens`
 - **Plataforma** — channel type (e.g. Balcão, iFood): just `nome` and the `entrega` flag (true = delivery channel like iFood/AnotaAi, has an `EM_ROTA` step; false = counter, used by the PDV). No fee here anymore — it lives on `CanalDeVenda`; table `plataforma`
 - **Loja** — store with unique `nome` and `ativo`; every order belongs to one. No DELETE: a store is deactivated via `ativo`, and the only active store cannot be deactivated; table `loja` (V5 seeds 'Loja principal')
-- **CanalDeVenda** — link Loja × Plataforma with `merchantId` (unique, null for Balcão), `taxaPercentual` (the fee of this store on this channel) and `ativo`; unique `(loja, plataforma)`; table `canal_de_venda`. An order can only be registered through an active channel of an active store (`CanalDeVendaService.buscarCanalAtivo`)
+- **CanalDeVenda** — link Loja × Plataforma with `merchantId` (unique, null for Balcão), `taxaPercentual` (the fee of this store on this channel), `tratamentoTaxaEntrega` (`DESCONTAR` | `SOMAR` | `IGNORAR`, default `DESCONTAR`: what to do with the delivery fee when the platform delivered) and `ativo`; unique `(loja, plataforma)`; table `canal_de_venda`. An order can only be registered through an active channel of an active store (`CanalDeVendaService.buscarCanalAtivo`)
 - **FormaDePagamento** — payment method with configurable `taxaPercentual`; table `forma_de_pagamento`
 - **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Loja` (set at creation, never changes), `Plataforma` and `FormaDePagamento`; table `pedidos`. `AdicionarPedidoRequest` is `(lojaId, plataformaId, nomeCliente, formaDePagamentoId, itens)`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`. `plataformaPedidoId` (nullable) is the order id on the external platform (the iFood `orderId`); null for PDV orders; unique `(plataforma_id, plataforma_pedido_id)` (V9)
 - **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
+- **Pedido** — `taxaEntrega` e `tratamentoTaxaEntrega` (V12), congelados na venda: pedido de balcão ou sem taxa fica com zero e `IGNORAR`. Ver "Taxa de entrega" abaixo
 - **ItemPedido** — line of a `Pedido`; stores `nomeItem`, `quantidade` and `precoUnitario`, all three always filled and locked at order time; FK to `Item` is **optional** (set by the PDV, null on an external order — never assume `getItem()` is non-null, and read the name from `nomeItem`, not from `item.getNome()`); table `itens_pedido` (V10)
 
 ### Regra de faturamento
@@ -343,11 +385,25 @@ Todo cálculo de dinheiro é `BigDecimal` do início ao fim, sem passar por `dou
 depois somada, porque é assim que a plataforma e a adquirente cobram — não troque para somar e
 arredondar no fim, isso quebra a reconciliação com o extrato.
 
+### Taxa de entrega
+
+Decisão 11 de `docs/integracao-ifood.md`. `PedidoServiceImpl.registrarPedidoExterno` resolve o
+tratamento na venda e o grava no pedido: entrega feita pela plataforma usa
+`CanalDeVenda.tratamentoTaxaEntrega`; entrega feita pela loja é sempre `SOMAR`. O
+`RegistrarPedidoExternoRequest` traz `taxaEntrega` e `entregaPelaPlataforma`; o translator do iFood
+preenche com `total.deliveryFee` e `delivery.deliveredBy != MERCHANT`.
+
+No `FechamentoServiceImpl`, `SOMAR` entra no bruto (e portanto no ticket médio e na curva horária)
+e na base da taxa de pagamento, mas **não** na base da comissão do canal; `DESCONTAR` entra em
+`totalTaxas` e em `taxaPlataforma` do agrupamento por plataforma; `IGNORAR` não mexe no caixa.
+`Pedido.valor` continua sendo só a soma dos itens. Como as taxas percentuais, o fechamento lê o
+tratamento gravado no pedido e nunca o do canal.
+
 ### Imutabilidade do histórico fechado
 
 `POST /fechamento` marca `Pedido.fechado = true` em todos os pedidos do período. A partir daí o
 pedido é **imutável**: `atualizarPedido`, `atualizarStatus` e `excluirPedido` recusam com
-`ConflitoException` (409). Sem isso, apagar ou editar um pedido de uma noite já fechada faz o
+`ConflitoException` (409), e `aplicarStatusExterno` devolve `PEDIDO_FECHADO` sem alterar. Sem isso, apagar ou editar um pedido de uma noite já fechada faz o
 `buscarFechamentoPorId` devolver um resumo congelado que não fecha com o breakdown recalculado.
 
 A flag existe em vez de uma consulta a `fechamentos_caixa` de propósito: `pedido` consultando o
@@ -385,10 +441,87 @@ existente sem gravar e sem alterar nada, porque o polling do iFood reentrega eve
 do banco é a segunda barreira. No MariaDB, linhas com `plataforma_pedido_id` nulo não colidem
 entre si, então pedido de balcão não é afetado pela unique.
 
-Pedido com `plataformaPedidoId` é **somente leitura para conteúdo**: `atualizarPedido` recusa
-com `ConflitoException` (409) e a SPA esconde o Editar. `atualizarStatus` e `excluirPedido`
-seguem as regras de qualquer pedido. O `POST /pedidos` do PDV continua exigindo `itemId` do
-cardápio e travando o preço do cardápio.
+Pedido com `plataformaPedidoId` **não é operado pelo painel**: o ciclo de vida dele é ditado
+pelos eventos da plataforma. `atualizarPedido`, `atualizarStatus` e `excluirPedido` (os métodos
+que os controllers chamam) recusam com `ConflitoException` (409), e a SPA esconde Editar,
+Avançar, Mudar etapa e Excluir, mostrando o badge "Externo". A checagem de pedido fechado vem
+antes: pedido externo já fechado responde com a mensagem do fechamento. O `POST /pedidos` do PDV
+continua exigindo `itemId` do cardápio e travando o preço do cardápio.
+
+O status de pedido externo muda só por
+`PedidoService.aplicarStatusExterno(plataformaId, plataformaPedidoId, status)`, também **sem
+controller**, que devolve `ResultadoStatusExterno` e nunca lança por causa do estado do pedido
+(argumento nulo ou em branco é `RequisicaoInvalidaException`):
+
+- `PEDIDO_NAO_ENCONTRADO`: o evento de status pode chegar antes do pedido; quem chama decide
+  se tenta de novo depois.
+- `PEDIDO_FECHADO`: evento tardio em pedido que já entrou num fechamento. **Não altera nada**,
+  só loga WARN com plataforma, id externo, status atual e status recebido. A imutabilidade do
+  histórico fechado não é reaberta.
+- `IGNORADO`: o status não avança. Eventos chegam repetidos e fora de ordem; `CONCLUIDO` e
+  `CANCELADO` são terminais, e fora isso só vale status à frente do atual na ordem do ciclo de
+  vida, ou `CANCELADO`. A regra mora em `StatusPedido.podeAvancarPara`.
+- `APLICADO`: status gravado. Pular etapas é normal (o iFood não informa todas).
+
+O mapeamento de evento do iFood para `StatusPedido` fica em
+`integracoes/ifood/enumerator/EventoPedidoIfood` (o pacote `pedido` não conhece códigos do
+iFood): `PLACED`/`PLC` → `EM_ABERTO`, `CONFIRMED`/`CFM` → `ACEITO`, `DISPATCHED`/`DSP` →
+`EM_ROTA`, `CONCLUDED`/`CON` → `CONCLUIDO`, `CANCELLED`/`CAN` → `CANCELADO`. Qualquer outro código
+devolve `Optional.empty()`. Não acrescente evento ao mapeamento sem decisão registrada em
+`docs/integracao-ifood.md`.
+
+`CanalDeVendaService.buscarCanalAtivoPorMerchantId` é como a ingestão vai descobrir loja e
+plataforma a partir do `merchantId` do evento; aplica as mesmas regras de canal e loja inativos
+do `buscarCanalAtivo`.
+
+### Cliente do iFood
+
+Credencial é do aplicativo, não do canal (decisão 7 do doc). `IfoodAutenticador` pede o token em
+`POST /authentication/v1.0/oauth/token` (formulário `grantType=client_credentials`, `clientId`,
+`clientSecret`; resposta `accessToken`, `type`, `expiresIn` em segundos), guarda em memória e
+renova 60 s antes de expirar, com uma única renovação por vez. `IfoodLojaClient.listarLojas` é
+`GET /merchant/v1.0/merchants`. O `RestClient` é montado à mão em `IfoodConfig`
+(`RestClient.builder()` com `JdkClientHttpRequestFactory`, conexão 5 s e leitura 15 s): o
+`spring-boot-restclient` não está no classpath, então não existe `RestClient.Builder`
+autoconfigurado para injetar.
+
+Erro do iFood vira `IntegracaoIfoodException` com o status HTTP e sem o corpo da resposta nem a
+exceção original como causa. **Nunca** logar `clientSecret`, token ou o header `Authorization`.
+Nada aqui é exposto por endpoint.
+
+### Ingestão do iFood
+
+`IfoodPollingJob` roda a cada 30 s e só existe com `ifood.polling.ativo=true`. Cada rodada chama
+`IfoodIngestaoService.receberEventos` e depois `processarEventosPendentes`; nenhuma exceção sai
+do job.
+
+- **Receber:** `GET /events/v1.0/events:polling` (204 = nada novo), grava cada evento ainda não
+  visto em `ifood_evento` (V11) como `PENDENTE`, com o JSON cru em `payload`, e só então confirma
+  todos em `POST /events/v1.0/events/acknowledgment`. Não há transação em volta: cada `save`
+  comita sozinho, então o acknowledgment nunca vai antes de o evento estar gravado. Falha ao
+  gravar interrompe a rodada sem confirmar e o iFood reentrega.
+- **Processar:** até 200 pendentes por rodada, em ordem de `criado_em`. Código sem equivalente em
+  `EventoPedidoIfood` ou evento sem `orderId` vira `IGNORADO`. `PLACED` busca o pedido
+  (`GET /order/v1.0/orders/{id}`), traduz e chama `registrarPedidoExterno`. Os demais chamam
+  `aplicarStatusExterno`; se o pedido ainda não existe, o pedido é buscado e registrado e o
+  status aplicado em seguida (cobre o `PLACED` perdido). Loja e plataforma saem de
+  `CanalDeVendaService.buscarCanalAtivoPorMerchantId`.
+- **Falha:** `IntegracaoIfoodException` (rede, 5xx, 404 do pedido) mantém o evento `PENDENTE` e
+  soma uma tentativa; na décima vira `FALHOU`. Qualquer outra exceção (canal não cadastrado ou
+  inativo, pedido recusado pela validação) vira `FALHOU` na hora. Reprocessar é voltar a linha
+  para `PENDENTE` no banco; `registrarPedidoExterno` é idempotente.
+- **Translator:** uma linha por item do iFood. O preço unitário é `totalPrice / quantity`, com os
+  opcionais embutidos, para o valor do pedido fechar com o total dos itens. Se a divisão não é
+  exata em duas casas ou a quantidade é fracionada, a linha entra com quantidade 1 e o total
+  como preço: o dinheiro tem prioridade sobre a quantidade do ranking. Descontos e taxa de
+  serviço do iFood **não** entram no valor do pedido (em aberto no doc); a taxa de entrega é
+  tratada à parte (seção "Taxa de entrega"). `createdAt` (UTC) é
+  convertido para o fuso do servidor.
+- O payload do **pedido** não é guardado: traz dado pessoal do cliente. Só o evento é.
+
+Caminhos, campos do pedido e acknowledgment foram conferidos em 15/10/2026 contra a loja de teste
+do Developer Portal (pedido de teste com `isTest: true`). Antes de ligar o polling numa loja
+real, falta confirmar a convivência com o Gestor de Pedidos (risco aberto no doc).
 
 No ranking de itens, item de cardápio agrupa pelo id e item externo pelo nome gravado; os dois
 grupos nunca se misturam, mesmo com nome igual. `ItemRankingDTO.itemId` e
