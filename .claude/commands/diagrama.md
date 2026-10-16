@@ -15,7 +15,7 @@ Se o argumento vier vazio, pergunte qual diagrama antes de mexer em qualquer coi
 | Gerador | `documentosDoEstagio/gerar_diagramas_drawio.py` |
 | Saída `.drawio` | `documentosDoEstagio/diagramas-drawio/` (15 arquivos) |
 | Mapa figura → arquivo | `documentosDoEstagio/diagramas-drawio/LEIA-ME.md` |
-| PNG exportados pelo usuário | `C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas` |
+| PNG exportados pelo usuário | A pasta da constante `IMAGENS` de `documentosDoEstagio/atualizar_relatorio_v2.py` |
 
 **Nunca desenhe um `.drawio` na mão.** Todos saem do gerador, para que um ajuste de coordenada
 seja uma edição e não um retrabalho. Só biblioteca padrão: `os`, `struct`, `re`,

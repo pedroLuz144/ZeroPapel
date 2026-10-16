@@ -122,7 +122,7 @@ Tipos usados neste repositório:
 | `fix` | Correção de bug em comportamento existente |
 | `refactor` | Reorganização sem mudança de comportamento (ex.: package-by-layer → package-by-feature) |
 | `test` | Adição ou ajuste de testes, sem mexer em código de produção |
-| `docs` | Documentação (README, CLAUDE.md, `docs/plano-integracao-ifood.md`) |
+| `docs` | Documentação (README, CLAUDE.md, `docs/integracao-ifood.md`) |
 | `chore` | Build, dependências, `.gitignore`, configuração de tooling |
 | `wip` | Ponto de salvamento intermediário numa branch de feature (não usar na `main`) |
 
@@ -286,7 +286,8 @@ dashboard/            → GET /dashboard: mesmo consolidado, em tempo real e só
 
 common/
   exception/          → exceções customizadas + GlobalExceptionHandler
-  web/                → SpaForwardController (encaminha rotas da SPA para index.html)
+  web/                → SpaForwardController (encaminha `/`, `/login` e `/app/**` para index.html;
+                        rota de tela nova fora de `/app/**` precisa entrar no `@GetMapping`)
 
 security/             → JwtFilter, JwtService, SecurityConfig, UsuarioDetailsServiceImpl
 
@@ -584,9 +585,9 @@ entrada e o de saída. O resto está separado por papel.
 | `modelos/` | Material de referência que não é gerado: exemplo de relatório, modelo da banca, enunciado |
 | `historico/` | Rodadas anteriores, mantidas só como registro: `corrigir_relatorio_estagio.py`, `gerar_plano_estagio.py`, os `inspecionar_docx*.py` e os `.docx` já superados. Nada aqui é para rodar de novo |
 
-Os PNGs dos diagramas **não** ficam nesta pasta: `atualizar_relatorio_v2.py` os lê de
-`C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas` (constante `IMAGENS`), que é para onde
-o passo manual de exportar do draw.io aponta.
+Os PNGs dos diagramas **não** ficam nesta pasta: `atualizar_relatorio_v2.py` os lê da pasta
+da constante `IMAGENS` (fora do repositório, no OneDrive do autor), que é para onde o passo
+manual de exportar do draw.io aponta.
 
 Fluxo, e ele tem um passo manual no meio:
 
@@ -595,7 +596,7 @@ editar gerar_diagramas_drawio.py
   -> python gerar_diagramas_drawio.py
   -> validar o XML de cada .drawio com ET.parse
   -> [MANUAL] usuário exporta PNG do draw.io para
-              C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas
+              a pasta da constante IMAGENS
   -> ler o PNG com o Read e conferir o desenho
   -> python atualizar_relatorio_v2.py
 ```

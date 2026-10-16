@@ -16,7 +16,7 @@ resolver um ajuste pontual.
 | Base (formatação já corrigida) | `documentosDoEstagio/Relatório de Estagio Pedro Luz - CORRIGIDO.docx` |
 | Script | `documentosDoEstagio/atualizar_relatorio_v2.py` |
 | Saída | `documentosDoEstagio/Relatório de Estagio Pedro Luz - 3o bimestre.docx` |
-| Imagens dos diagramas | `C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas` |
+| Imagens dos diagramas | A pasta da constante `IMAGENS` de `documentosDoEstagio/atualizar_relatorio_v2.py` |
 | Capturas de tela | `documentosDoEstagio/telas/` (.jpg, lidas pelo atalho `tela()`) |
 
 O script lê a base, aplica as mudanças e grava a saída. **A base nunca é alterada**, então

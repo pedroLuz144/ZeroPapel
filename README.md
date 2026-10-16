@@ -177,6 +177,6 @@ Implementado: usuários, cardápio, categorias, pedidos com ciclo de vida, plata
 pagamento, fechamento de caixa persistido, dashboard em tempo real e a SPA completa.
 
 Em andamento: integração iFood (branch `feat/ifood`) — ver
-[docs/plano-integracao-ifood.md](docs/plano-integracao-ifood.md).
+[docs/integracao-ifood.md](docs/integracao-ifood.md).
 
 Planejado: integração AnotaAi, entidade Entregador, aba Integrações nas configurações.
