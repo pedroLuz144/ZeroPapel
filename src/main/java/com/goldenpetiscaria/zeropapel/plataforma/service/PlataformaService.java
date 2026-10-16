@@ -6,6 +6,7 @@ import com.goldenpetiscaria.zeropapel.plataforma.dto.response.PlataformaResponse
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface PlataformaService {
     PlataformaResponseDTO adicionarPlataforma(AdicionarPlataformaRequest request);
@@ -13,4 +14,5 @@ public interface PlataformaService {
     PlataformaResponseDTO atualizarPlataforma(Long id, AtualizarPlataformaRequest request);
     void excluirPlataforma(Long id);
     Plataforma buscarEntidadePorId(Long id);
+    Optional<Plataforma> buscarPlataformaDeBalcao();
 }

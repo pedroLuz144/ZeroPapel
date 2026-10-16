@@ -158,7 +158,7 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (15/10/2026):** 263 testes no Java, todos passando (`./mvnw test`), mais 2
+**Estado atual (15/10/2026):** 276 testes no Java, todos passando (`./mvnw test`), mais 2
 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
@@ -168,7 +168,7 @@ ignorados na suíte normal (`IfoodApiRealTest`).
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
 | `UsuarioMasterServiceImplTest` (14) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
-| `CanalDeVendaServiceImplTest` (22) | unicidade loja × plataforma, tratamento da taxa de entrega (padrão e alteração), unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos, busca do canal ativo por `merchantId` |
+| `CanalDeVendaServiceImplTest` (29) | unicidade loja × plataforma, tratamento da taxa de entrega (padrão e alteração), canal de balcão criado com taxa zero e protegido contra exclusão e desativação na loja ativa, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos, busca do canal ativo por `merchantId` |
 | `EventoPedidoIfoodTest` (21) | cada código do iFood (curto e por extenso) no `StatusPedido` decidido; código desconhecido, sem equivalente ou nulo devolve vazio |
 | `IfoodAutenticadorTest` (16) | obtém o token por formulário, reutiliza enquanto vale, renova com margem e depois de expirar (relógio injetado), sem credenciais não chama HTTP, 401/5xx/falha de conexão viram `IntegracaoIfoodException` sem o corpo cru, log sem token nem segredo |
 | `IfoodLojaClientTest` (5) | envia `Authorization: Bearer`, desserializa a lista, 401 descarta o token, erro de servidor, sem credenciais |
@@ -178,14 +178,15 @@ ignorados na suíte normal (`IfoodApiRealTest`).
 | `IfoodIngestaoServiceImplTest` (18) | inbox: grava evento novo como pendente, confirma só depois de gravar, não regrava reentrega, não confirma se a gravação falha, limita o payload; sem forma de pagamento não chama nada; processamento: `PLACED` registra, status aplica, status antes do pedido registra e aplica, sem equivalente ou sem `orderId` é ignorado, falha do iFood mantém pendente até o limite de tentativas, falha de regra de negócio marca `FALHOU`, uma falha não trava os eventos seguintes |
 | `IfoodPollingJobTest` (3) | recebe e depois processa; falha do polling não impede o processamento; nenhuma exceção escapa do job |
 | `IfoodApiRealTest` (2, ignorados) | chama o iFood de verdade (token + listagem de lojas; polling de eventos **sem** acknowledgment), só leitura; só roda com `IFOOD_TESTE_REAL=true` |
-| `LojaServiceImplTest` (7) | cadastro, nome único, invariante da única loja ativa, loja inexistente |
+| `LojaServiceImplTest` (8) | cadastro (publica `LojaCadastradaEvent`), nome único, invariante da única loja ativa, loja inexistente |
+| `PlataformaServiceImplTest` (5) | a única plataforma de balcão não pode ser excluída nem virar entrega; busca do balcão |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
 | `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
 
-Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `PlataformaServiceImpl`,
-`FormaDePagamentoServiceImpl`, e os controllers. O frontend tem só
+Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `FormaDePagamentoServiceImpl`,
+`CanalDeBalcaoListener` e os controllers. O frontend tem só
 `frontend/src/utils/formato.spec.ts` (7), `frontend/src/utils/periodo.spec.ts` (8),
 `frontend/src/utils/rotaInterna.spec.ts` (10), `frontend/src/api/http.spec.ts` (15),
 `frontend/src/components/CarrinhoEditor.spec.ts` (7) e
@@ -293,8 +294,9 @@ categoria/            → categorias do cardápio
 pedido/               → pedidos e itens de pedido (Pedido + ItemPedido)
   enumerator/          → StatusPedido (etapas do kanban, ordem e terminais), ResultadoStatusExterno
 plataforma/           → tipos de canal (Balcão, iFood, etc.); sem taxa
-loja/                 → lojas (multi-loja); sem DELETE, desativa por `ativo`
-canaldevenda/         → vínculo Loja × Plataforma: merchantId, taxa e ativo
+loja/                 → lojas (multi-loja); sem DELETE, desativa por `ativo`; publica `LojaCadastradaEvent`
+canaldevenda/         → vínculo Loja × Plataforma: merchantId, taxa e ativo; `CanalDeBalcaoListener`
+                        cria o canal de balcão da loja recém-cadastrada
 formadepagamento/     → formas de pagamento
 fechamentodecaixa/    → fechamento de caixa com cálculo de taxas (persiste um registro)
 dashboard/            → GET /dashboard: mesmo consolidado, em tempo real e só-leitura
@@ -543,6 +545,25 @@ real, falta confirmar a convivência com o Gestor de Pedidos (risco aberto no do
 No ranking de itens, item de cardápio agrupa pelo id e item externo pelo nome gravado; os dois
 grupos nunca se misturam, mesmo com nome igual. `ItemRankingDTO.itemId` e
 `ItemPedidoResponseDTO.itemId` são nulos para item externo.
+
+### Balcão sempre existe
+
+O PDV só registra venda pela plataforma de balcão (`entrega = false`) e precisa de um canal ativo
+dela na loja. Por isso:
+
+- **V13** garante uma plataforma de balcão: transforma em balcão uma plataforma chamada "Balcão"
+  cadastrada por engano como entrega ou, se não houver nenhuma, cria "Balcão". Também cria um
+  canal ativo com taxa 0 para cada loja que não tem.
+- **Loja nova** ganha o canal de balcão sozinha. `LojaServiceImpl` publica `LojaCadastradaEvent`
+  e `canaldevenda/listener/CanalDeBalcaoListener` chama
+  `CanalDeVendaService.garantirCanalDeBalcao`. É evento, e não chamada direta, porque
+  `canaldevenda` já depende de `loja`: `loja` chamar `canaldevenda` seria dependência circular. O
+  listener é síncrono, então uma falha desfaz o cadastro da loja.
+- **Proteções (409):** `PlataformaService` recusa excluir a única plataforma de balcão ou
+  marcá-la como entrega; `CanalDeVendaService` recusa excluir ou desativar o último canal de
+  balcão ativo de uma loja ativa. Loja inativa pode perder o balcão.
+- "A" plataforma de balcão é a de menor id com `entrega = false`
+  (`PlataformaService.buscarPlataformaDeBalcao`).
 
 ### Exclusão de plataforma e `on delete cascade` no canal
 

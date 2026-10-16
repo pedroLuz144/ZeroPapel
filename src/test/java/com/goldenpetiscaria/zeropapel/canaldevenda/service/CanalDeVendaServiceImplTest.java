@@ -16,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -35,6 +36,7 @@ class CanalDeVendaServiceImplTest {
 
     private static final Long LOJA_ID = 7L;
     private static final Long PLATAFORMA_ID = 3L;
+    private static final Long BALCAO_ID = 4L;
 
     @Mock
     private CanalDeVendaRepository canalDeVendaRepository;
@@ -235,6 +237,108 @@ class CanalDeVendaServiceImplTest {
                     .isInstanceOf(RecursoNaoEncontradoException.class);
 
             verify(canalDeVendaRepository, never()).delete(any());
+        }
+    }
+
+    @Nested
+    class CanalDeBalcao {
+
+        @Test
+        void garantirCanalDeBalcao_criaOCanalComTaxaZero_quandoALojaNaoTem() {
+            Plataforma balcao = balcao();
+            Loja loja = loja(true);
+            when(plataformaService.buscarPlataformaDeBalcao()).thenReturn(Optional.of(balcao));
+            when(canalDeVendaRepository.findByLojaIdAndPlataformaId(LOJA_ID, BALCAO_ID)).thenReturn(Optional.empty());
+            when(lojaService.buscarEntidadePorId(LOJA_ID)).thenReturn(loja);
+
+            service.garantirCanalDeBalcao(LOJA_ID);
+
+            ArgumentCaptor<CanalDeVenda> salvo = ArgumentCaptor.forClass(CanalDeVenda.class);
+            verify(canalDeVendaRepository).save(salvo.capture());
+            assertThat(salvo.getValue().getLoja()).isSameAs(loja);
+            assertThat(salvo.getValue().getPlataforma()).isSameAs(balcao);
+            assertThat(salvo.getValue().getTaxaPercentual()).isEqualByComparingTo("0");
+            assertThat(salvo.getValue().isAtivo()).isTrue();
+        }
+
+        @Test
+        void garantirCanalDeBalcao_naoFazNada_quandoOCanalJaExiste() {
+            when(plataformaService.buscarPlataformaDeBalcao()).thenReturn(Optional.of(balcao()));
+            when(canalDeVendaRepository.findByLojaIdAndPlataformaId(LOJA_ID, BALCAO_ID))
+                    .thenReturn(Optional.of(canalDeBalcao(true, true)));
+
+            service.garantirCanalDeBalcao(LOJA_ID);
+
+            verify(canalDeVendaRepository, never()).save(any());
+        }
+
+        @Test
+        void garantirCanalDeBalcao_naoFazNada_quandoNaoHaPlataformaDeBalcao() {
+            when(plataformaService.buscarPlataformaDeBalcao()).thenReturn(Optional.empty());
+
+            service.garantirCanalDeBalcao(LOJA_ID);
+
+            verify(canalDeVendaRepository, never()).save(any());
+        }
+
+        @Test
+        void excluirCanal_lancaConflito_quandoEOUltimoCanalDeBalcaoAtivoDaLoja() {
+            CanalDeVenda balcao = canalDeBalcao(true, true);
+            when(canalDeVendaRepository.findById(1L)).thenReturn(Optional.of(balcao));
+            when(canalDeVendaRepository.countByLojaIdAndAtivoTrueAndPlataformaEntregaFalse(LOJA_ID)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.excluirCanal(1L))
+                    .isInstanceOf(ConflitoException.class)
+                    .hasMessageContaining("balcão");
+
+            verify(canalDeVendaRepository, never()).delete(any());
+        }
+
+        @Test
+        void atualizarCanal_lancaConflito_quandoDesativaOUltimoCanalDeBalcaoAtivoDaLoja() {
+            CanalDeVenda balcao = canalDeBalcao(true, true);
+            when(canalDeVendaRepository.findById(1L)).thenReturn(Optional.of(balcao));
+            when(canalDeVendaRepository.countByLojaIdAndAtivoTrueAndPlataformaEntregaFalse(LOJA_ID)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.atualizarCanal(1L, new AtualizarCanalDeVendaRequest(null, null, null, false)))
+                    .isInstanceOf(ConflitoException.class);
+
+            assertThat(balcao.isAtivo()).isTrue();
+        }
+
+        @Test
+        void excluirCanal_excluiOBalcao_quandoALojaTemOutroCanalDeBalcaoAtivo() {
+            CanalDeVenda balcao = canalDeBalcao(true, true);
+            when(canalDeVendaRepository.findById(1L)).thenReturn(Optional.of(balcao));
+            when(canalDeVendaRepository.countByLojaIdAndAtivoTrueAndPlataformaEntregaFalse(LOJA_ID)).thenReturn(2L);
+
+            service.excluirCanal(1L);
+
+            verify(canalDeVendaRepository).delete(balcao);
+        }
+
+        @Test
+        void excluirCanal_excluiOBalcao_quandoALojaEstaInativa() {
+            CanalDeVenda balcao = canalDeBalcao(true, false);
+            when(canalDeVendaRepository.findById(1L)).thenReturn(Optional.of(balcao));
+
+            service.excluirCanal(1L);
+
+            verify(canalDeVendaRepository).delete(balcao);
+        }
+
+        private CanalDeVenda canalDeBalcao(boolean canalAtivo, boolean lojaAtiva) {
+            CanalDeVenda canal = canal(1L, canalAtivo, lojaAtiva);
+            canal.setPlataforma(balcao());
+            return canal;
+        }
+
+        private Plataforma balcao() {
+            Plataforma balcao = new Plataforma();
+            balcao.setId(BALCAO_ID);
+            balcao.setNome("Balcão");
+            balcao.setEntrega(false);
+            return balcao;
         }
     }
 

@@ -56,6 +56,9 @@ public class PlataformaServiceImpl implements PlataformaService {
             plataforma.setNome(request.nome());
         }
         if (request.entrega() != null) {
+            if (request.entrega() && ehUnicaPlataformaDeBalcao(plataforma)) {
+                throw new ConflitoException("Não é possível marcar como entrega a única plataforma de balcão");
+            }
             plataforma.setEntrega(request.entrega());
         }
         return toDTO(plataformaRepository.save(plataforma));
@@ -64,6 +67,9 @@ public class PlataformaServiceImpl implements PlataformaService {
     @Override
     public void excluirPlataforma(Long id) {
         Plataforma plataforma = buscarEntidadePorId(id);
+        if (ehUnicaPlataformaDeBalcao(plataforma)) {
+            throw new ConflitoException("Não é possível excluir a única plataforma de balcão");
+        }
         if (pedidoRepository.existsByPlataformaId(id)) {
             throw new ConflitoException("Não é possível excluir a plataforma pois existem pedidos vinculados a ela");
         }
@@ -74,6 +80,15 @@ public class PlataformaServiceImpl implements PlataformaService {
     public Plataforma buscarEntidadePorId(Long id) {
         return plataformaRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+    }
+
+    @Override
+    public Optional<Plataforma> buscarPlataformaDeBalcao() {
+        return plataformaRepository.findFirstByEntregaFalseOrderByIdAsc();
+    }
+
+    private boolean ehUnicaPlataformaDeBalcao(Plataforma plataforma) {
+        return !plataforma.isEntrega() && plataformaRepository.countByEntregaFalse() == 1;
     }
 
     private PlataformaResponseDTO toDTO(Plataforma plataforma) {

@@ -12,6 +12,7 @@ import java.util.Optional;
 public interface CanalDeVendaRepository extends JpaRepository<CanalDeVenda, Long> {
     Optional<CanalDeVenda> findByLojaIdAndPlataformaId(Long lojaId, Long plataformaId);
     Optional<CanalDeVenda> findByMerchantId(String merchantId);
+    long countByLojaIdAndAtivoTrueAndPlataformaEntregaFalse(Long lojaId);
 
     @Query("SELECT c FROM CanalDeVenda c " +
            "JOIN FETCH c.loja l " +
