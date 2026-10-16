@@ -1,7 +1,3 @@
-/*
- * Espelho tipado dos DTOs do backend (com/goldenpetiscaria/zeropapel).
- * Mantém os nomes de campo exatamente como o Jackson serializa.
- */
 
 export type Cargo = 'GERENTE' | 'OPERADOR'
 export type StatusItem = 'ATIVO' | 'INATIVO'
@@ -15,7 +11,6 @@ export type StatusPedido =
   | 'CONCLUIDO'
   | 'CANCELADO'
 
-// ── Autenticação ──────────────────────────────────────────
 export interface LoginRequest {
   usuario: string
   senha: string
@@ -31,7 +26,6 @@ export interface RefreshRequest {
   refreshToken: string
 }
 
-// ── Usuário ───────────────────────────────────────────────
 export interface UsuarioResponse {
   id: number
   nome: string
@@ -54,7 +48,6 @@ export interface AtualizarUsuarioRequest {
   cargo?: Cargo
 }
 
-// ── Categoria ─────────────────────────────────────────────
 export interface CategoriaResponse {
   id: number
   nome: string
@@ -64,7 +57,6 @@ export interface CategoriaRequest {
   nome: string
 }
 
-// ── Item ──────────────────────────────────────────────────
 export interface ItemResponse {
   id: number
   nome: string
@@ -90,7 +82,6 @@ export interface AtualizarItemRequest {
   descricao?: string | null
 }
 
-// ── Forma de pagamento ───────────────────────────────────
 export interface TaxaResponse {
   id: number
   nome: string
@@ -109,11 +100,9 @@ export interface AtualizarTaxaRequest {
 
 export type FormaDePagamentoResponse = TaxaResponse
 
-// ── Plataforma (tipo de canal; a taxa fica no canal de venda) ─
 export interface PlataformaResponse {
   id: number
   nome: string
-  /** true = canal de entrega (iFood, AnotaAi); false = balcão. */
   entrega: boolean
 }
 
@@ -127,7 +116,6 @@ export interface AtualizarPlataformaRequest {
   entrega?: boolean
 }
 
-// ── Loja ──────────────────────────────────────────────────
 export interface LojaResponse {
   id: number
   nome: string
@@ -143,7 +131,6 @@ export interface AtualizarLojaRequest {
   ativo?: boolean
 }
 
-// ── Canal de venda (loja × plataforma) ────────────────────
 export type TratamentoTaxaEntrega = 'DESCONTAR' | 'SOMAR' | 'IGNORAR'
 
 export interface CanalDeVendaResponse {
@@ -173,7 +160,6 @@ export interface AtualizarCanalDeVendaRequest {
   ativo?: boolean
 }
 
-// ── Pedido ────────────────────────────────────────────────
 export interface ItemPedidoRequest {
   itemId: number
   quantidade: number
@@ -219,7 +205,6 @@ export interface PedidoResponse {
   itens: ItemPedidoResponse[]
 }
 
-// ── Fechamento de caixa ───────────────────────────────────
 export interface RealizarFechamentoRequest {
   de: string
   ate: string
@@ -287,7 +272,6 @@ export interface FechamentoCaixaListagem {
   ticketMedio: number
 }
 
-// ── Erro padrão do GlobalExceptionHandler ─────────────────
 export interface ApiError {
   error: string
 }

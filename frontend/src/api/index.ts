@@ -105,7 +105,6 @@ export const fechamentoApi = {
   realizar: (body: RealizarFechamentoRequest) => http.post<FechamentoResponse>('/fechamento', body),
 }
 
-/** Consolidado em tempo real (só-leitura, não persiste). `id` vem null. */
 export const dashboardApi = {
   hoje: () => http.get<FechamentoResponse>('/dashboard'),
   periodo: (de: string, ate: string) =>

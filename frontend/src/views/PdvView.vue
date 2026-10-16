@@ -42,8 +42,6 @@ const carrinho = ref<LinhaCarrinho[]>([])
 
 const salvando = ref(false)
 
-// O PDV só registra pedidos de balcão: a plataforma sem flag de entrega
-// (fallback: uma chamada "Balcão"). Delivery entra pela integração.
 const plataformaBalcao = computed<PlataformaResponse | null>(() => {
   const semEntrega = plataformas.value.find((p) => !p.entrega)
   if (semEntrega) return semEntrega

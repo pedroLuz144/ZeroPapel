@@ -2,8 +2,6 @@ import { fileURLToPath, URL } from 'node:url'
 import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
-// Prefixos de API que, no dev server, são encaminhados para o backend Spring (porta 8080).
-// Em produção a SPA é servida pelo próprio Spring, então as chamadas relativas caem no mesmo host.
 const PREFIXOS_API = [
   '/auth',
   '/pedidos',
@@ -26,7 +24,6 @@ export default defineConfig({
     },
   },
   build: {
-    // O build sai direto na pasta estática do Spring Boot.
     outDir: fileURLToPath(new URL('../src/main/resources/static', import.meta.url)),
     emptyOutDir: true,
   },
@@ -37,7 +34,6 @@ export default defineConfig({
     ),
   },
   test: {
-    // jsdom para poder montar componentes; os testes ficam ao lado do arquivo testado.
     environment: 'jsdom',
     include: ['src/**/*.spec.ts'],
   },

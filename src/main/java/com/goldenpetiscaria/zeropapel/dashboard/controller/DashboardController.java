@@ -12,15 +12,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
 
-/**
- * Visão em tempo real do caixa. Recalcula o consolidado a partir dos pedidos
- * atuais, sem persistir — ao contrário de {@code POST /fechamento}, que congela
- * um registro. Sem parâmetros, usa o dia de hoje (00:00 → agora).
- */
 @RestController
 @RequestMapping("/dashboard")
 public class DashboardController {
-
     private static final int LIMITE_DE_DIAS_DO_CONSOLIDADO = 92;
 
     private final FechamentoService fechamentoService;
@@ -36,7 +30,6 @@ public class DashboardController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime de,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime ate) {
-
         Periodo periodo = Periodo.doDiaCorrenteSeAusente(de, ate, LIMITE_DE_DIAS_DO_CONSOLIDADO);
 
         return fechamentoService.calcularPrevia(periodo.de(), periodo.ate());

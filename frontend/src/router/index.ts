@@ -3,9 +3,7 @@ import { auth } from '@/stores/auth'
 
 declare module 'vue-router' {
   interface RouteMeta {
-    /** Rota acessível sem sessão (ex.: login). */
     publico?: boolean
-    /** Rota restrita ao cargo GERENTE. */
     gerente?: boolean
   }
 }

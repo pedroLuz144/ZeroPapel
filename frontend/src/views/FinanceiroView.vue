@@ -22,15 +22,15 @@ const ate = ref('')
 const atual = ref<FechamentoResponse | null>(null)
 const historico = ref<FechamentoCaixaListagem[]>([])
 
-const carregando = ref(true) // primeira carga
-const atualizando = ref(false) // recarga silenciosa (poll / botão)
-const fechando = ref(false) // POST /fechamento em andamento
+const carregando = ref(true)
+const atualizando = ref(false)
+const fechando = ref(false)
 const erro = ref('')
 const erroHistorico = ref('')
 
-const janelaCustom = ref(false) // usuário aplicou um período manual
+const janelaCustom = ref(false)
 const periodoEditado = ref(false)
-const fonteAoVivo = ref(true) // false quando exibindo um fechamento salvo
+const fonteAoVivo = ref(true)
 let timer: number | undefined
 let trocasDeFonte = 0
 
@@ -47,7 +47,6 @@ function periodoDeHoje(): void {
   periodoEditado.value = false
 }
 
-// ── Derivados ─────────────────────────────────────────────
 const maxBrutoPlataforma = computed(() =>
   Math.max(1, ...(atual.value?.porPlataforma ?? []).map((l) => l.bruto)),
 )
@@ -76,7 +75,6 @@ const totalPlataformas = computed(() => {
   }
 })
 
-// ── Carga ─────────────────────────────────────────────────
 async function carregarDashboard(
   custom: boolean,
   opcoes: { silencioso?: boolean; automatico?: boolean } = {},
@@ -143,7 +141,6 @@ onUnmounted(() => {
   if (timer) clearInterval(timer)
 })
 
-// ── Fechar caixa (persiste) ──────────────────────────────
 async function avisoDePedidosEmAndamento(periodo: RealizarFechamentoRequest): Promise<string> {
   let emAndamento: number
   try {
@@ -501,7 +498,6 @@ async function abrir(id: number): Promise<void> {
   }
 }
 
-/* ── Gráfico de barras ───────────────────────────────────── */
 .grafico {
   display: flex;
   align-items: flex-end;
@@ -549,7 +545,6 @@ async function abrir(id: number): Promise<void> {
   text-align: center;
 }
 
-/* ── Legenda de formas de pagamento ──────────────────────── */
 .legenda {
   list-style: none;
   display: flex;

@@ -15,7 +15,6 @@ function carregar(): EstadoAuth {
     const cru = localStorage.getItem(CHAVE)
     if (cru) return { ...vazio(), ...JSON.parse(cru) }
   } catch {
-    /* storage indisponível ou corrompido — começa deslogado */
   }
   return vazio()
 }
@@ -30,7 +29,6 @@ function persistir(): void {
   try {
     localStorage.setItem(CHAVE, JSON.stringify(estado))
   } catch {
-    /* ignora falha de persistência */
   }
 }
 
@@ -67,7 +65,6 @@ export const auth = {
     try {
       localStorage.removeItem(CHAVE)
     } catch {
-      /* ignora */
     }
   },
 }

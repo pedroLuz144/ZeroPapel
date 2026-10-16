@@ -22,7 +22,6 @@ function responder(ok: boolean): void {
   estado.resolver = null
 }
 
-/** Diálogo de confirmação assíncrono — substitui window.confirm(). */
 export function useConfirm() {
   function confirmar(
     mensagem: string,
