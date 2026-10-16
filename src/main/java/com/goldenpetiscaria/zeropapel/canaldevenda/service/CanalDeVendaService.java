@@ -14,4 +14,5 @@ public interface CanalDeVendaService {
     void excluirCanal(Long id);
     CanalDeVenda buscarCanalAtivo(Long lojaId, Long plataformaId);
     CanalDeVenda buscarCanalAtivoPorMerchantId(String merchantId);
+    void garantirCanalDeBalcao(Long lojaId);
 }

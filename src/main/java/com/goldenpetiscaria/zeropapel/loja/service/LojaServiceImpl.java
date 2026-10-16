@@ -7,7 +7,9 @@ import com.goldenpetiscaria.zeropapel.loja.dto.request.AdicionarLojaRequest;
 import com.goldenpetiscaria.zeropapel.loja.dto.request.AtualizarLojaRequest;
 import com.goldenpetiscaria.zeropapel.loja.dto.response.LojaResponseDTO;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
+import com.goldenpetiscaria.zeropapel.loja.evento.LojaCadastradaEvent;
 import com.goldenpetiscaria.zeropapel.loja.repository.LojaRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,9 +21,11 @@ import java.util.Optional;
 public class LojaServiceImpl implements LojaService {
 
     private final LojaRepository lojaRepository;
+    private final ApplicationEventPublisher eventos;
 
-    public LojaServiceImpl(LojaRepository lojaRepository) {
+    public LojaServiceImpl(LojaRepository lojaRepository, ApplicationEventPublisher eventos) {
         this.lojaRepository = lojaRepository;
+        this.eventos = eventos;
     }
 
     @Override
@@ -33,7 +37,9 @@ public class LojaServiceImpl implements LojaService {
         }
         Loja loja = new Loja();
         loja.setNome(nome);
-        return toDTO(lojaRepository.save(loja));
+        Loja salva = lojaRepository.save(loja);
+        eventos.publishEvent(new LojaCadastradaEvent(salva.getId()));
+        return toDTO(salva);
     }
 
     @Override

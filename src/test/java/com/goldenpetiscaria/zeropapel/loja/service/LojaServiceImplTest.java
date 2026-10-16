@@ -7,12 +7,14 @@ import com.goldenpetiscaria.zeropapel.loja.dto.request.AdicionarLojaRequest;
 import com.goldenpetiscaria.zeropapel.loja.dto.request.AtualizarLojaRequest;
 import com.goldenpetiscaria.zeropapel.loja.dto.response.LojaResponseDTO;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
+import com.goldenpetiscaria.zeropapel.loja.evento.LojaCadastradaEvent;
 import com.goldenpetiscaria.zeropapel.loja.repository.LojaRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.springframework.context.ApplicationEventPublisher;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
@@ -30,6 +32,9 @@ class LojaServiceImplTest {
     @Mock
     private LojaRepository lojaRepository;
 
+    @Mock
+    private ApplicationEventPublisher eventos;
+
     @InjectMocks
     private LojaServiceImpl service;
 
@@ -45,6 +50,20 @@ class LojaServiceImplTest {
     }
 
     @Test
+    void adicionarLoja_publicaOEventoDeLojaCadastrada() {
+        when(lojaRepository.findByNome("Centro")).thenReturn(Optional.empty());
+        when(lojaRepository.save(any())).thenAnswer(chamada -> {
+            Loja salva = chamada.getArgument(0);
+            salva.setId(7L);
+            return salva;
+        });
+
+        service.adicionarLoja(new AdicionarLojaRequest("Centro"));
+
+        verify(eventos).publishEvent(new LojaCadastradaEvent(7L));
+    }
+
+    @Test
     void adicionarLoja_lancaConflito_quandoONomeJaExiste() {
         when(lojaRepository.findByNome("Centro")).thenReturn(Optional.of(loja(1L, "Centro", true)));
 
@@ -52,6 +71,7 @@ class LojaServiceImplTest {
                 .isInstanceOf(ConflitoException.class);
 
         verify(lojaRepository, never()).save(any());
+        verify(eventos, never()).publishEvent(any());
     }
 
     @Test

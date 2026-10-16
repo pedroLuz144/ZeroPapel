@@ -11,13 +11,16 @@ import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.loja.service.LojaService;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import com.goldenpetiscaria.zeropapel.plataforma.service.PlataformaService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class CanalDeVendaServiceImpl implements CanalDeVendaService {
 
@@ -81,6 +84,10 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
             canal.setTratamentoTaxaEntrega(request.tratamentoTaxaEntrega());
         }
         if (request.ativo() != null) {
+            if (!request.ativo() && ehUltimoCanalDeBalcaoAtivo(canal)) {
+                throw new ConflitoException("A loja " + canal.getLoja().getNome()
+                        + " precisa de um canal de balcão ativo para o PDV");
+            }
             canal.setAtivo(request.ativo());
         }
         return toDTO(canalDeVendaRepository.save(canal));
@@ -89,7 +96,37 @@ public class CanalDeVendaServiceImpl implements CanalDeVendaService {
     @Override
     @Transactional
     public void excluirCanal(Long id) {
-        canalDeVendaRepository.delete(buscarPorId(id));
+        CanalDeVenda canal = buscarPorId(id);
+        if (ehUltimoCanalDeBalcaoAtivo(canal)) {
+            throw new ConflitoException("A loja " + canal.getLoja().getNome()
+                    + " precisa de um canal de balcão ativo para o PDV");
+        }
+        canalDeVendaRepository.delete(canal);
+    }
+
+    @Override
+    @Transactional
+    public void garantirCanalDeBalcao(Long lojaId) {
+        Optional<Plataforma> balcao = plataformaService.buscarPlataformaDeBalcao();
+        if (balcao.isEmpty()) {
+            log.warn("Loja id={} sem canal de balcão: não há plataforma de balcão cadastrada", lojaId);
+            return;
+        }
+        if (canalDeVendaRepository.findByLojaIdAndPlataformaId(lojaId, balcao.get().getId()).isPresent()) {
+            return;
+        }
+        CanalDeVenda canal = new CanalDeVenda();
+        canal.setLoja(lojaService.buscarEntidadePorId(lojaId));
+        canal.setPlataforma(balcao.get());
+        canal.setTaxaPercentual(BigDecimal.ZERO);
+        canalDeVendaRepository.save(canal);
+    }
+
+    private boolean ehUltimoCanalDeBalcaoAtivo(CanalDeVenda canal) {
+        return canal.isAtivo()
+                && !canal.getPlataforma().isEntrega()
+                && canal.getLoja().isAtivo()
+                && canalDeVendaRepository.countByLojaIdAndAtivoTrueAndPlataformaEntregaFalse(canal.getLoja().getId()) == 1;
     }
 
     @Override

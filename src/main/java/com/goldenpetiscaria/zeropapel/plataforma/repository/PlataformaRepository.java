@@ -9,4 +9,6 @@ import java.util.Optional;
 @Repository
 public interface PlataformaRepository extends JpaRepository<Plataforma, Long> {
     Optional<Plataforma> findByNome(String nome);
+    Optional<Plataforma> findFirstByEntregaFalseOrderByIdAsc();
+    long countByEntregaFalse();
 }
