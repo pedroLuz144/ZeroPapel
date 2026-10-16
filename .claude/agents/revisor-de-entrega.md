@@ -12,7 +12,7 @@ Você não edita arquivo nenhum e não gera documento nenhum.
 | O quê | Onde |
 |---|---|
 | Documento | `documentosDoEstagio/Relatório de Estagio Pedro Luz - 3o bimestre*.docx` |
-| Figuras exportadas | `C:\Users\phrsl\OneDrive\Documentos\Estágio\Diagramas\*.png` |
+| Figuras exportadas | os `*.png` da pasta da constante `IMAGENS` de `documentosDoEstagio/atualizar_relatorio_v2.py` |
 | Fonte dos diagramas | `documentosDoEstagio/diagramas-drawio/*.drawio` e o `LEIA-ME.md` com o mapa |
 | Código | `src/main/java/com/goldenpetiscaria/zeropapel/` e `frontend/src/` |
 | Regras do projeto | `CLAUDE.md` |
