@@ -157,7 +157,7 @@ class UsuarioMasterServiceImplTest {
         when(usuarioRepository.count()).thenReturn(0L);
 
         ResultadoUsuarioMaster resultado =
-                service.criarUsuarioMasterSeNaoHouverUsuarios("Administrador", "admin", "abc");
+                service.criarUsuarioMasterSeNaoHouverUsuarios("Administrador", "admin", "abcdefg");
 
         assertThat(resultado).isEqualTo(ResultadoUsuarioMaster.CREDENCIAIS_INVALIDAS);
         verify(usuarioRepository, never()).save(any());
@@ -170,12 +170,25 @@ class UsuarioMasterServiceImplTest {
     void criarUsuarioMaster_cria_quandoSenhaTemOTamanhoMinimo() {
         when(usuarioRepository.count()).thenReturn(0L);
         when(usuarioRepository.findByUsuario("admin")).thenReturn(Optional.empty());
-        when(passwordEncoder.encode("abcd")).thenReturn("hash-bcrypt");
+        when(passwordEncoder.encode("abcdefgh")).thenReturn("hash-bcrypt");
 
         ResultadoUsuarioMaster resultado =
-                service.criarUsuarioMasterSeNaoHouverUsuarios("Administrador", "admin", "abcd");
+                service.criarUsuarioMasterSeNaoHouverUsuarios("Administrador", "admin", "abcdefgh");
 
         assertThat(resultado).isEqualTo(ResultadoUsuarioMaster.CRIADO);
         verify(usuarioRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("senha acima do maximo do cadastro nao cria")
+    void criarUsuarioMaster_naoCria_quandoSenhaPassaDoMaximo() {
+        when(usuarioRepository.count()).thenReturn(0L);
+
+        ResultadoUsuarioMaster resultado =
+                service.criarUsuarioMasterSeNaoHouverUsuarios("Administrador", "admin", "a".repeat(73));
+
+        assertThat(resultado).isEqualTo(ResultadoUsuarioMaster.CREDENCIAIS_INVALIDAS);
+        verify(usuarioRepository, never()).save(any());
+        verifyNoInteractions(passwordEncoder);
     }
 }
