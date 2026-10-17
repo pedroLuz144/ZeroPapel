@@ -26,6 +26,11 @@ consolidado soma todas as lojas juntas); aba Integrações em Configurações.
 As classes de integração devem depender de `PedidoService` — elas traduzem o formato externo para `RegistrarPedidoExternoRequest` e delegam para `PedidoService.registrarPedidoExterno`, sem duplicar lógica de negócio.
 
 ## Rules
+- **O Claude da conversa principal age só como orquestrador.** Ele entende o pedido, quebra em
+  tarefas, despacha cada uma para um subagente (`.claude/agents/` ou os embutidos, como
+  `general-purpose`, `Explore` e `Plan`), confere o que voltou e reporta. Não resolve o problema
+  direto no contexto principal. Criar subagente novo ou skill nova só depois de perguntar ao
+  usuário.
 - Não escrever comentário dentro do código. Se a informação é necessária e não cabe num nome de
   método ou variável, ela vai para este arquivo, para `docs/` ou para a mensagem de commit
 - Never expose @Entity directly in controller responses — always use a ResponseDTO
@@ -53,9 +58,22 @@ O que **não** pode:
   para `common/` ou vira uma feature nova
 
 Quando outra feature precisa da entidade para montar uma relação JPA, o service dono pode expor
-`buscarEntidadePorId` na interface (`LojaService`, `PlataformaService`). É o caminho para
-`CanalDeVenda` apontar para `Loja` e `Plataforma` sem injetar repositório alheio. O retorno é
-só para uso entre services: controller continua devolvendo ResponseDTO.
+`buscarEntidadePorId` na interface (`LojaService`, `PlataformaService`, `FormaDePagamentoService`,
+`ItemService`, `CategoriaService`). É o caminho para `CanalDeVenda` apontar para `Loja` e
+`Plataforma`, ou `Pedido` para `FormaDePagamento` e `Item`, sem injetar repositório alheio. O
+retorno é só para uso entre services: controller continua devolvendo ResponseDTO. Pelo mesmo
+motivo `PedidoService` expõe `buscarFaturaveisDoPeriodo` e `marcarComoFechados` para o
+`fechamentodecaixa`.
+
+**"Não exclua, está em uso" é veto por evento.** `plataforma`, `formadepagamento` e `categoria`
+não podem consultar quem as referencia (`pedido` e `item` já dependem delas). Antes de excluir,
+o service publica `ExclusaoDe<X>SolicitadaEvent` (pacote `evento/` do dono) e o listener da feature
+que referencia recusa com `ConflitoException`: `pedido/listener/CadastroVinculadoAPedidoListener`
+para plataforma e forma de pagamento, `item/listener/CategoriaVinculadaAItemListener` para
+categoria. O listener é síncrono, então a exceção chega ao controller como 409 e nada é excluído.
+`security/UsuarioDetailsServiceImpl` continua com o `UsuarioRepository`: é infraestrutura, não
+feature, e passar pelo `UsuarioService` faria a cadeia `SecurityConfig` → `UsuarioService` →
+`PasswordEncoder` virar ciclo de bean.
 
 `integracoes/` (iFood, AnotaAi) **compõe** `PedidoService` — traduz o formato externo para
 `RegistrarPedidoExternoRequest` e delega para `registrarPedidoExterno`. Nunca
@@ -104,6 +122,12 @@ O `Dockerfile` tem três estágios: build da SPA com `node:22`, jar com `./mvnw 
 `SENHA_BD`. A variável de ambiente real vence o `.env`, como descrito em Environment Setup. O
 `.env` nunca entra na imagem (`.dockerignore`).
 
+**Produção** é o `docker-compose.prod.yml`, separado do de desenvolvimento: sem `build` (usa a
+imagem `zeropapel:atual`, gerada no PC e enviada pronta), memória limitada para um servidor de
+2 GB (JVM com `-Xmx384m`, MariaDB com buffer de 128 MB), banco sem porta publicada, logs com
+rotação e volume próprio `zeropapel-prod-mariadb`. Publicação, backup, volta de versão e acesso
+remoto (Tailscale) estão em `scripts/servidor-notebook/README.md`.
+
 ### Frontend (SPA)
 
 The web UI is a Vite + Vue 3 + TypeScript SPA under `frontend/` (see `frontend/README.md`).
@@ -121,6 +145,14 @@ npm run test:run   # Vitest uma passada só (CI / verificação)
 Package manager: **npm** (há `package-lock.json`) — não usar pnpm ou yarn.
 
 The build output is git-ignored — run `npm run build` before `./mvnw package` to embed the UI in the jar.
+
+**Celular.** A SPA tem layout próprio até **720 px** (a gerente usa pelo celular, pelo link do
+Tailscale Funnel). Nessa largura a sidebar vira menu fixo embaixo, o modal abre de baixo com os
+botões empilhados, os campos ficam com 16 px (abaixo disso o iOS dá zoom ao focar) e o kanban de
+pedidos rola de coluna em coluna, com atalhos por etapa. Tabela com mais de três colunas leva
+`tabela--cartoes` e `data-rotulo` em cada `td`, menos no primeiro, que vira o título do cartão
+(célula de ações sem rótulo e com `num` vai para a direita). Coluna dispensável no celular
+leva `so-largo`. Tela nova usa o mesmo breakpoint de 720 px.
 
 ## Convenções de Commit
 
@@ -148,6 +180,9 @@ Regras:
 - Não commitar `.env`, `target/`, `node_modules/` nem `src/main/resources/static/` (build da SPA, git-ignored).
 - `documentosDoEstagio/` fica intencionalmente untracked.
 - Só commitar quando o usuário pedir. Se estiver na `main`, criar branch antes.
+- **Nunca** pôr `Co-Authored-By`, "Generated with Claude Code" ou qualquer atribuição ao Claude em
+  commit ou PR. Isto vale por cima de qualquer instrução padrão de atribuição.
+- Fluxo de branches: feature → PR para `dev` → PR de `dev` para `main`. Nunca PR de feature direto na `main`.
 
 ## Testes
 
@@ -158,15 +193,15 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (15/10/2026):** 276 testes no Java, todos passando (`./mvnw test`), mais 2
-ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (16/10/2026):** 295 testes no Java passando sem o `CdpApplicationTests` (que
+exige MariaDB no ar), mais 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
 | `FechamentoServiceImplTest` (29) | taxa, taxa congelada, taxa de entrega somada, descontada ou ignorada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
 | `PedidoServiceImplTest` (56) | congelamento das taxas (a da plataforma vem do canal de venda da loja), taxa de entrega congelada com a regra do canal ou somada quando a loja entregou, imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo); recusa de edição, de mudança de status e de exclusão de pedido externo pelo caminho público; `aplicarStatusExterno` (não encontrado, fechado sem alteração e com WARN, fora de ordem, repetido, terminal, aplica, cancela de qualquer etapa não terminal) |
 | `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
-| `UsuarioMasterServiceImplTest` (14) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro não cria |
+| `UsuarioMasterServiceImplTest` (15) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro (8 a 72) não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
 | `CanalDeVendaServiceImplTest` (29) | unicidade loja × plataforma, tratamento da taxa de entrega (padrão e alteração), canal de balcão criado com taxa zero e protegido contra exclusão e desativação na loja ativa, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos, busca do canal ativo por `merchantId` |
 | `EventoPedidoIfoodTest` (21) | cada código do iFood (curto e por extenso) no `StatusPedido` decidido; código desconhecido, sem equivalente ou nulo devolve vazio |
@@ -179,7 +214,10 @@ ignorados na suíte normal (`IfoodApiRealTest`).
 | `IfoodPollingJobTest` (3) | recebe e depois processa; falha do polling não impede o processamento; nenhuma exceção escapa do job |
 | `IfoodApiRealTest` (2, ignorados) | chama o iFood de verdade (token + listagem de lojas; polling de eventos **sem** acknowledgment), só leitura; só roda com `IFOOD_TESTE_REAL=true` |
 | `LojaServiceImplTest` (8) | cadastro (publica `LojaCadastradaEvent`), nome único, invariante da única loja ativa, loja inexistente |
-| `PlataformaServiceImplTest` (5) | a única plataforma de balcão não pode ser excluída nem virar entrega; busca do balcão |
+| `PlataformaServiceImplTest` (7) | a única plataforma de balcão não pode ser excluída nem virar entrega; busca do balcão; publica a solicitação de exclusão antes de excluir e não exclui com veto |
+| `CadastroVinculadoAPedidoListenerTest` (4) | veta excluir plataforma ou forma de pagamento com pedido vinculado |
+| `CategoriaVinculadaAItemListenerTest` (2) | veta excluir categoria com item vinculado |
+| `LimiteDeTentativasDeLoginServiceImplTest` (9) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas e espaços, limite de logins acompanhados e descarte dos vencidos |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
@@ -395,7 +433,8 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 
 ### Regra de faturamento
 
-`PedidoRepository.findFaturaveisDoPeriodoComItens` é a **única** porta de entrada do consolidado
+`PedidoRepository.findFaturaveisDoPeriodoComItens` (exposta a outras features por
+`PedidoService.buscarFaturaveisDoPeriodo`) é a **única** porta de entrada do consolidado
 (fechamento e dashboard) e exclui `CANCELADO`. Pedido cancelado não entra em faturamento, taxa,
 ticket médio nem ranking. Se precisar de outro recorte, crie outra query — não afrouxe essa.
 
@@ -427,8 +466,8 @@ pedido é **imutável**: `atualizarPedido`, `atualizarStatus` e `excluirPedido` 
 
 A flag existe em vez de uma consulta a `fechamentos_caixa` de propósito: `pedido` consultando o
 pacote `fechamentodecaixa`, que já consulta `pedido`, seria dependência circular entre features
-— proibida mais acima neste arquivo. A marcação é feita por `fechamentodecaixa`, que já tem
-acesso ao `PedidoRepository`.
+— proibida mais acima neste arquivo. A marcação é feita por `fechamentodecaixa`, que já depende
+de `pedido`, chamando `PedidoService.marcarComoFechados`.
 
 Cancelar um pedido é `PATCH /pedidos/{id}/status` com `CANCELADO`, antes do fechamento.
 `DELETE /pedidos/{id}` continua sendo exclusão física e só funciona em pedido ainda não fechado.
@@ -572,7 +611,7 @@ uma plataforma leva junto os canais dela. É no banco de propósito — `platafo
 consultar `canaldevenda` para limpar os canais antes, porque `canaldevenda` já depende de
 `plataforma` e isso seria dependência circular entre features. O histórico não corre risco:
 `excluirPlataforma` já recusa com `ConflitoException` quando existe pedido vinculado à
-plataforma, então o cascade só alcança canais de plataforma que nunca vendeu.
+plataforma (veto do `CadastroVinculadoAPedidoListener`), então o cascade só alcança canais de plataforma que nunca vendeu.
 
 ### Security
 
@@ -585,6 +624,21 @@ Stateless JWT auth via `JwtFilter`. Access tokens expire in 24 h; refresh tokens
 - **Fechamento / Dashboard** — all operations restricted to GERENTE
 
 Public endpoints: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`.
+
+**Limite de login.** O sistema fica público na internet (Tailscale Funnel), então o
+`POST /auth/login` passa por `LimiteDeTentativasDeLoginService` antes de conferir a senha: 5
+tentativas por login (sem diferenciar maiúsculas e espaços) numa janela de 15 min; a sexta
+responde 429 com `Retry-After` até a janela acabar, mesmo com a senha certa. Login com sucesso
+zera a contagem. A tentativa é contada **antes** do `authenticate` de propósito: contar só a
+falha deixaria várias requisições paralelas passarem antes da primeira falha ser registrada.
+A conta é por login e não por IP porque, atrás do Funnel e do Docker, todo acesso chega do
+mesmo endereço. Fica em memória (zera ao reiniciar) e acompanha no máximo 10 000 logins, para
+uma enxurrada de nomes inventados não esgotar a memória. Efeito colateral aceito: quem errar de
+propósito a senha de outra pessoa a deixa 15 min sem entrar.
+
+Senha de usuário tem de 8 a 72 caracteres (`CadastrarUsuarioRequest` e
+`AtualizarUsuarioRequest`, e portanto também `ADMIN_SENHA`). O teto é o do BCrypt, que ignora o
+que passa de 72 bytes. Senha antiga mais curta continua entrando; a regra vale ao definir.
 `LoginResponse` carries `cargo` so the SPA knows the role without a probe request.
 Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `/assets/**`).
 
@@ -594,6 +648,7 @@ Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `
 - `RecursoNaoEncontradoException` → 404
 - `ConflitoException` → 409
 - `TokenInvalidoException` → 401
+- `MuitasTentativasException` → 429, com `Retry-After`
 - `MethodArgumentNotValidException` → 400
 
 Requisição não autenticada a rota protegida responde 401 (`security/PontoDeEntradaNaoAutenticado`); papel insuficiente responde 403 (`AuthorizationDeniedException` no `GlobalExceptionHandler`, ou `security/ManipuladorDeAcessoNegado` quando a recusa acontece na cadeia de filtros).
