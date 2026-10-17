@@ -193,8 +193,8 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (16/10/2026):** 295 testes no Java passando sem o `CdpApplicationTests` (que
-exige MariaDB no ar), mais 2 ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (17/10/2026):** 300 testes no Java sem o `CdpApplicationTests` (que exige
+MariaDB no ar): 298 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
@@ -217,7 +217,7 @@ exige MariaDB no ar), mais 2 ignorados na suíte normal (`IfoodApiRealTest`).
 | `PlataformaServiceImplTest` (7) | a única plataforma de balcão não pode ser excluída nem virar entrega; busca do balcão; publica a solicitação de exclusão antes de excluir e não exclui com veto |
 | `CadastroVinculadoAPedidoListenerTest` (4) | veta excluir plataforma ou forma de pagamento com pedido vinculado |
 | `CategoriaVinculadaAItemListenerTest` (2) | veta excluir categoria com item vinculado |
-| `LimiteDeTentativasDeLoginServiceImplTest` (9) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas e espaços, limite de logins acompanhados e descarte dos vencidos |
+| `LimiteDeTentativasDeLoginServiceImplTest` (14) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas, espaços, acento e largura total na mesma chave; mapa cheio recusa login novo com 429 sem passar do limite, não expulsa nem zera o contador de login real, continua contando login já acompanhado, abre espaço quando uma janela vence e descarta os vencidos |
 | `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
@@ -627,14 +627,23 @@ Public endpoints: `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`.
 
 **Limite de login.** O sistema fica público na internet (Tailscale Funnel), então o
 `POST /auth/login` passa por `LimiteDeTentativasDeLoginService` antes de conferir a senha: 5
-tentativas por login (sem diferenciar maiúsculas e espaços) numa janela de 15 min; a sexta
+tentativas por login numa janela de 15 min; a sexta
 responde 429 com `Retry-After` até a janela acabar, mesmo com a senha certa. Login com sucesso
 zera a contagem. A tentativa é contada **antes** do `authenticate` de propósito: contar só a
 falha deixaria várias requisições paralelas passarem antes da primeira falha ser registrada.
 A conta é por login e não por IP porque, atrás do Funnel e do Docker, todo acesso chega do
-mesmo endereço. Fica em memória (zera ao reiniciar) e acompanha no máximo 10 000 logins, para
-uma enxurrada de nomes inventados não esgotar a memória. Efeito colateral aceito: quem errar de
-propósito a senha de outra pessoa a deixa 15 min sem entrar.
+mesmo endereço. A chave é o login na forma canônica: NFKC (largura total vira ASCII), NFD sem as
+marcas combinantes (sem acento), `toLowerCase(Locale.ROOT)` e `strip()`. Precisa ser assim porque
+a collation do MariaDB não diferencia caixa, acento nem largura: `ádmin` e `ＡＤＭＩＮ` entram como
+`admin` e têm de cair no mesmo contador. Fica em memória (zera ao reiniciar) e acompanha no
+máximo 10 000 logins, para uma enxurrada de nomes inventados não esgotar a memória. Com o mapa
+cheio, login já acompanhado continua contando normalmente; login novo faz descartar os vencidos
+e, se continuar cheio, é recusado com 429 até a primeira janela vencer. Nunca se expulsa entrada
+ainda na janela nem se libera tentativa sem contar: senão encher o mapa zeraria o contador de
+quem está sendo atacado. Efeitos colaterais aceitos: quem errar de propósito a senha de outra
+pessoa a deixa 15 min sem entrar, e quem encher o mapa com 10 000 nomes deixa sem entrar, pelo
+mesmo tempo, quem ainda não tinha tentativa registrada. O WARN de mapa cheio sai no máximo uma
+vez por minuto.
 
 Senha de usuário tem de 8 a 72 caracteres (`CadastrarUsuarioRequest` e
 `AtualizarUsuarioRequest`, e portanto também `ADMIN_SENHA`). O teto é o do BCrypt, que ignora o

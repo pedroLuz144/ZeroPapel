@@ -7,10 +7,11 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Comparator;
+import java.text.Normalizer;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 @Slf4j
 @Service
@@ -20,9 +21,12 @@ public class LimiteDeTentativasDeLoginServiceImpl implements LimiteDeTentativasD
     static final Duration JANELA = Duration.ofMinutes(15);
     static final int MAXIMO_DE_LOGINS_ACOMPANHADOS = 10_000;
     private static final int TAMANHO_MAXIMO_DA_CHAVE = 100;
+    private static final Pattern MARCAS_COMBINANTES = Pattern.compile("\\p{M}+");
+    private static final Duration INTERVALO_ENTRE_AVISOS_DE_LOTACAO = Duration.ofMinutes(1);
 
-    private final Map<String, Tentativas> tentativasPorLogin = new ConcurrentHashMap<>();
+    private final Map<String, Tentativas> tentativasPorLogin = new HashMap<>();
     private final Clock relogio;
+    private Instant ultimoAvisoDeLotacao;
 
     public LimiteDeTentativasDeLoginServiceImpl() {
         this(Clock.systemUTC());
@@ -33,10 +37,10 @@ public class LimiteDeTentativasDeLoginServiceImpl implements LimiteDeTentativasD
     }
 
     @Override
-    public void registrarTentativa(String login) {
+    public synchronized void registrarTentativa(String login) {
         Instant agora = relogio.instant();
         String chave = chave(login);
-        abrirEspacoSeNecessario(chave, agora);
+        garantirEspaco(chave, agora);
         Tentativas registradas = tentativasPorLogin.compute(chave, (k, atual) -> somarTentativa(atual, agora));
         if (registradas.quantidade() == MAXIMO_DE_TENTATIVAS) {
             log.warn("Login bloqueado por {} min depois de {} tentativas sem sucesso",
@@ -45,11 +49,11 @@ public class LimiteDeTentativasDeLoginServiceImpl implements LimiteDeTentativasD
     }
 
     @Override
-    public void registrarSucesso(String login) {
+    public synchronized void registrarSucesso(String login) {
         tentativasPorLogin.remove(chave(login));
     }
 
-    int loginsAcompanhados() {
+    synchronized int loginsAcompanhados() {
         return tentativasPorLogin.size();
     }
 
@@ -63,20 +67,39 @@ public class LimiteDeTentativasDeLoginServiceImpl implements LimiteDeTentativasD
         return new Tentativas(atual.quantidade() + 1, atual.liberaEm());
     }
 
-    private void abrirEspacoSeNecessario(String chave, Instant agora) {
+    private void garantirEspaco(String chave, Instant agora) {
         if (tentativasPorLogin.size() < MAXIMO_DE_LOGINS_ACOMPANHADOS || tentativasPorLogin.containsKey(chave)) {
             return;
         }
         tentativasPorLogin.values().removeIf(t -> t.expirou(agora));
-        while (tentativasPorLogin.size() >= MAXIMO_DE_LOGINS_ACOMPANHADOS) {
-            tentativasPorLogin.entrySet().stream()
-                    .min(Comparator.comparing(e -> e.getValue().liberaEm()))
-                    .ifPresent(e -> tentativasPorLogin.remove(e.getKey(), e.getValue()));
+        if (tentativasPorLogin.size() >= MAXIMO_DE_LOGINS_ACOMPANHADOS) {
+            Instant primeiraLiberacao = tentativasPorLogin.values().stream()
+                    .map(Tentativas::liberaEm)
+                    .min(Instant::compareTo)
+                    .orElse(agora.plus(JANELA));
+            avisarLotacao(agora);
+            throw new MuitasTentativasException(Duration.between(agora, primeiraLiberacao));
         }
     }
 
-    private static String chave(String login) {
-        String normalizado = login == null ? "" : login.trim().toLowerCase(Locale.ROOT);
+    private void avisarLotacao(Instant agora) {
+        if (ultimoAvisoDeLotacao != null && agora.isBefore(ultimoAvisoDeLotacao.plus(INTERVALO_ENTRE_AVISOS_DE_LOTACAO))) {
+            return;
+        }
+        ultimoAvisoDeLotacao = agora;
+        log.warn("Limite de {} logins acompanhados atingido; tentativas de login novo recusadas",
+                MAXIMO_DE_LOGINS_ACOMPANHADOS);
+    }
+
+    static String chave(String login) {
+        if (login == null) {
+            return "";
+        }
+        String compatibilizado = Normalizer.normalize(login, Normalizer.Form.NFKC);
+        String semAcento = MARCAS_COMBINANTES
+                .matcher(Normalizer.normalize(compatibilizado, Normalizer.Form.NFD))
+                .replaceAll("");
+        String normalizado = semAcento.toLowerCase(Locale.ROOT).strip();
         return normalizado.length() > TAMANHO_MAXIMO_DA_CHAVE
                 ? normalizado.substring(0, TAMANHO_MAXIMO_DA_CHAVE)
                 : normalizado;

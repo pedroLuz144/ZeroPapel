@@ -98,26 +98,101 @@ class LimiteDeTentativasDeLoginServiceImplTest {
     }
 
     @Test
-    @DisplayName("nao acompanha mais logins que o limite de memoria")
-    void registrarTentativa_limitaALista() {
-        for (int i = 0; i <= MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
-            service.registrarTentativa("login-" + i);
+    @DisplayName("acento, largura total, maiusculas e espacos caem no mesmo contador")
+    void registrarTentativa_normalizaAcentoELarguraTotal() {
+        service.registrarTentativa("admin");
+        service.registrarTentativa("ádmin");
+        service.registrarTentativa("ＡＤＭＩＮ");
+        service.registrarTentativa(" ÀDMÍN ");
+        service.registrarTentativa("a\u0301dmin");
+
+        assertThat(service.loginsAcompanhados()).isEqualTo(1);
+        assertThatThrownBy(() -> service.registrarTentativa("Ａｄｍｉｎ"))
+                .isInstanceOf(MuitasTentativasException.class);
+    }
+
+    @Test
+    @DisplayName("a chave canonica tira acento, largura total, caixa e espacos")
+    void chave_ehCanonica() {
+        assertThat(LimiteDeTentativasDeLoginServiceImpl.chave("  ＥＬＩＡＮＥ ")).isEqualTo("eliane");
+        assertThat(LimiteDeTentativasDeLoginServiceImpl.chave("Conceição")).isEqualTo("conceicao");
+        assertThat(LimiteDeTentativasDeLoginServiceImpl.chave(null)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("cheio de logins na janela, recusa login novo com 429 sem acompanhar alem do limite")
+    void registrarTentativa_recusaLoginNovo_quandoCheio() {
+        encher();
+        relogio.avancar(Duration.ofMinutes(5));
+
+        assertThatThrownBy(() -> service.registrarTentativa("novo"))
+                .isInstanceOf(MuitasTentativasException.class)
+                .extracting("espera")
+                .isEqualTo(JANELA.minusMinutes(5));
+        assertThat(service.loginsAcompanhados()).isEqualTo(MAXIMO_DE_LOGINS_ACOMPANHADOS);
+    }
+
+    @Test
+    @DisplayName("encher o mapa com nomes inventados nao descarta nem zera o contador de um login real")
+    void registrarTentativa_encherNaoExpulsaLoginReal() {
+        tentar("eliane", MAXIMO_DE_TENTATIVAS);
+        for (int i = 1; i < MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
+            service.registrarTentativa("inventado-" + i);
+        }
+        for (int i = 0; i < 100; i++) {
+            int indice = i;
+            assertThatThrownBy(() -> service.registrarTentativa("outro-" + indice))
+                    .isInstanceOf(MuitasTentativasException.class);
         }
 
+        assertThatThrownBy(() -> service.registrarTentativa("eliane"))
+                .isInstanceOf(MuitasTentativasException.class);
+        assertThat(service.loginsAcompanhados()).isEqualTo(MAXIMO_DE_LOGINS_ACOMPANHADOS);
+    }
+
+    @Test
+    @DisplayName("cheio, login ja acompanhado continua sendo contado")
+    void registrarTentativa_cheio_continuaContandoLoginAcompanhado() {
+        service.registrarTentativa("eliane");
+        for (int i = 1; i < MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
+            service.registrarTentativa("inventado-" + i);
+        }
+
+        tentar("eliane", MAXIMO_DE_TENTATIVAS - 1);
+
+        assertThatThrownBy(() -> service.registrarTentativa("eliane"))
+                .isInstanceOf(MuitasTentativasException.class);
+    }
+
+    @Test
+    @DisplayName("cheio, abre espaco para login novo assim que alguma janela vence")
+    void registrarTentativa_cheio_aceitaLoginNovoQuandoAlgumaJanelaVence() {
+        service.registrarTentativa("antigo");
+        relogio.avancar(Duration.ofMinutes(1));
+        for (int i = 1; i < MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
+            service.registrarTentativa("inventado-" + i);
+        }
+        relogio.avancar(JANELA.minusMinutes(1));
+
+        assertThatCode(() -> service.registrarTentativa("novo")).doesNotThrowAnyException();
         assertThat(service.loginsAcompanhados()).isEqualTo(MAXIMO_DE_LOGINS_ACOMPANHADOS);
     }
 
     @Test
     @DisplayName("ao encher, descarta primeiro os logins com a janela ja vencida")
     void registrarTentativa_descartaVencidosAoEncher() {
-        for (int i = 0; i < MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
-            service.registrarTentativa("login-" + i);
-        }
+        encher();
         relogio.avancar(JANELA);
 
         service.registrarTentativa("novo");
 
         assertThat(service.loginsAcompanhados()).isEqualTo(1);
+    }
+
+    private void encher() {
+        for (int i = 0; i < MAXIMO_DE_LOGINS_ACOMPANHADOS; i++) {
+            service.registrarTentativa("login-" + i);
+        }
     }
 
     private void tentar(String login, int vezes) {
