@@ -7,9 +7,9 @@ import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RequisicaoInvalidaException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
-import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
+import com.goldenpetiscaria.zeropapel.formadepagamento.service.FormaDePagamentoService;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
-import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import com.goldenpetiscaria.zeropapel.item.service.ItemService;
 import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
@@ -73,10 +73,10 @@ class PedidoServiceImplTest {
     private CanalDeVendaService canalDeVendaService;
 
     @Mock
-    private FormaDePagamentoRepository formaDePagamentoRepository;
+    private FormaDePagamentoService formaDePagamentoService;
 
     @Mock
-    private ItemRepository itemRepository;
+    private ItemService itemService;
 
     private PedidoServiceImpl service;
 
@@ -94,7 +94,7 @@ class PedidoServiceImplTest {
     @BeforeEach
     void montarService() {
         service = new PedidoServiceImpl(pedidoRepository, canalDeVendaService,
-                formaDePagamentoRepository, itemRepository, validator);
+                formaDePagamentoService, itemService, validator);
     }
 
     @Nested
@@ -107,8 +107,8 @@ class PedidoServiceImplTest {
             FormaDePagamento credito = formaDePagamento(2L, "Credito", "2.99");
             Item cerveja = item(3L, "Cerveja", "9.00");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(ifood);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(credito));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(cerveja));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(credito);
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(cerveja);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedido(new AdicionarPedidoRequest(LOJA_ID, 1L, "Pedro", 2L,
@@ -126,8 +126,8 @@ class PedidoServiceImplTest {
             FormaDePagamento pix = formaDePagamento(2L, "Pix", "0.00");
             Item cerveja = item(3L, "Cerveja", "9.00");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(ifood);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(pix));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(cerveja));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(pix);
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(cerveja);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedido(new AdicionarPedidoRequest(LOJA_ID, 1L, null, 2L,
@@ -160,7 +160,7 @@ class PedidoServiceImplTest {
                     formaDePagamento(2L, "Pix", "0.00"));
             FormaDePagamento credito = formaDePagamento(8L, "Credito", "2.99");
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(existente));
-            when(formaDePagamentoRepository.findById(8L)).thenReturn(Optional.of(credito));
+            when(formaDePagamentoService.buscarEntidadePorId(8L)).thenReturn(credito);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.atualizarPedido(1L, new AtualizarPedidoRequest(null, null, 8L, null));
@@ -198,7 +198,7 @@ class PedidoServiceImplTest {
             PedidoResponseDTO resposta = service.atualizarPedido(1L,
                     new AtualizarPedidoRequest(1L, "Outro Nome", 2L, null));
 
-            verifyNoInteractions(canalDeVendaService, formaDePagamentoRepository);
+            verifyNoInteractions(canalDeVendaService, formaDePagamentoService);
             assertThat(existente.getTaxaPlataformaPercentual()).isEqualByComparingTo("10.00");
             assertThat(existente.getTaxaPagamentoPercentual()).isEqualByComparingTo("1.50");
             assertThat(resposta.nomeCliente()).isEqualTo("Outro Nome");
@@ -214,7 +214,7 @@ class PedidoServiceImplTest {
             lenient().when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L))
                     .thenThrow(new ConflitoException("O canal esta inativo"));
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(existente));
-            when(itemRepository.findById(4L)).thenReturn(Optional.of(item(4L, "Porcao", "30.00")));
+            when(itemService.buscarEntidadePorId(4L)).thenReturn(item(4L, "Porcao", "30.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.atualizarPedido(1L,
@@ -237,8 +237,8 @@ class PedidoServiceImplTest {
             FormaDePagamento pix = formaDePagamento(2L, "Pix", "0.00");
             Item cerveja = item(3L, "Cerveja", "9.50");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(balcao);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(pix));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(cerveja));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(pix);
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(cerveja);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.registrarPedido(new AdicionarPedidoRequest(
@@ -257,8 +257,8 @@ class PedidoServiceImplTest {
         void registrarPedido_gravaONomeDoItem_quandoOItemERenomeadoDepois() {
             Item cerveja = item(3L, "Cerveja", "9.50");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(cerveja));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(formaDePagamento(2L, "Pix", "0.00"));
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(cerveja);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedido(new AdicionarPedidoRequest(
@@ -275,8 +275,8 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedido_devolveItemIdENomeGravado() {
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.50")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(formaDePagamento(2L, "Pix", "0.00"));
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(item(3L, "Cerveja", "9.50"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.registrarPedido(new AdicionarPedidoRequest(
@@ -291,8 +291,8 @@ class PedidoServiceImplTest {
         void registrarPedido_vinculaOPedidoALojaEAPlataformaDoCanal() {
             CanalDeVenda balcao = canal(1L, "Balcao", "0.00");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(balcao);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.00")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(formaDePagamento(2L, "Pix", "0.00"));
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(item(3L, "Cerveja", "9.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.registrarPedido(new AdicionarPedidoRequest(
@@ -332,8 +332,8 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedido_lancaRecursoNaoEncontrado_quandoItemNaoExiste() {
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
-            when(itemRepository.findById(99L)).thenReturn(Optional.empty());
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(formaDePagamento(2L, "Pix", "0.00"));
+            when(itemService.buscarEntidadePorId(99L)).thenThrow(new RecursoNaoEncontradoException("não encontrado"));
 
             assertThatThrownBy(() -> service.registrarPedido(new AdicionarPedidoRequest(
                     LOJA_ID, 1L, null, 2L, List.of(new ItemPedidoRequest(99L, 1)))))
@@ -353,8 +353,8 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
                     .thenReturn(Optional.empty());
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(ifood);
-            when(formaDePagamentoRepository.findById(2L))
-                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L))
+                    .thenReturn(formaDePagamento(2L, "Online", "0.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
             LocalDateTime horarioNoIfood = LocalDateTime.of(2026, 10, 7, 20, 15);
 
@@ -364,7 +364,7 @@ class PedidoServiceImplTest {
                             new ItemPedidoExternoRequest("Refrigerante Lata", 1, new BigDecimal("6.00")))));
 
             Pedido salvo = capturarSalvo();
-            verifyNoInteractions(itemRepository);
+            verifyNoInteractions(itemService);
             assertThat(salvo.getPlataformaPedidoId()).isEqualTo(ID_NO_IFOOD);
             assertThat(salvo.getLoja()).isSameAs(ifood.getLoja());
             assertThat(salvo.getPlataforma()).isSameAs(ifood.getPlataforma());
@@ -394,7 +394,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
                     .thenReturn(Optional.empty());
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(ifood);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(credito));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(credito);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedidoExterno(pedidoExternoValido());
@@ -412,8 +412,8 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
                     .thenReturn(Optional.empty());
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal(IFOOD_ID, "iFood", "12.00"));
-            when(formaDePagamentoRepository.findById(2L))
-                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L))
+                    .thenReturn(formaDePagamento(2L, "Online", "0.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
             LocalDateTime antes = LocalDateTime.now();
 
@@ -435,7 +435,7 @@ class PedidoServiceImplTest {
             PedidoResponseDTO resposta = service.registrarPedidoExterno(pedidoExternoValido());
 
             verify(pedidoRepository, never()).save(any());
-            verifyNoInteractions(canalDeVendaService, formaDePagamentoRepository, itemRepository);
+            verifyNoInteractions(canalDeVendaService, formaDePagamentoService, itemService);
             assertThat(resposta.id()).isEqualTo(1L);
             assertThat(resposta.status()).isEqualTo(StatusPedido.EM_PREPARO);
             assertThat(resposta.valor()).isEqualByComparingTo("19.00");
@@ -518,7 +518,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
                     .thenReturn(Optional.empty());
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal(IFOOD_ID, "iFood", "12.00"));
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.empty());
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenThrow(new RecursoNaoEncontradoException("não encontrado"));
 
             assertThatThrownBy(() -> service.registrarPedidoExterno(pedidoExternoValido()))
                     .isInstanceOf(RecursoNaoEncontradoException.class);
@@ -539,7 +539,7 @@ class PedidoServiceImplTest {
 
             assertThat(externo.getNomeCliente()).isEqualTo("Maria");
             assertThat(externo.getItens().getFirst().getNomeItem()).isEqualTo("X-Burger");
-            verifyNoInteractions(itemRepository);
+            verifyNoInteractions(itemService);
             verify(pedidoRepository, never()).save(any());
         }
 
@@ -643,8 +643,8 @@ class PedidoServiceImplTest {
         @Test
         void registrarPedido_naoTemTaxaDeEntrega() {
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(canal(1L, "Balcao", "0.00"));
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(formaDePagamento(2L, "Pix", "0.00")));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.50")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(formaDePagamento(2L, "Pix", "0.00"));
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(item(3L, "Cerveja", "9.50"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedido(new AdicionarPedidoRequest(
@@ -659,8 +659,8 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
                     .thenReturn(Optional.empty());
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, IFOOD_ID)).thenReturn(canal);
-            when(formaDePagamentoRepository.findById(2L))
-                    .thenReturn(Optional.of(formaDePagamento(2L, "Online", "0.00")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L))
+                    .thenReturn(formaDePagamento(2L, "Online", "0.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedidoExterno(new RegistrarPedidoExternoRequest(
@@ -861,8 +861,8 @@ class PedidoServiceImplTest {
             CanalDeVenda balcao = canal(1L, "Balcao", "0.00");
             FormaDePagamento pix = formaDePagamento(2L, "Pix", "0.00");
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 1L)).thenReturn(balcao);
-            when(formaDePagamentoRepository.findById(2L)).thenReturn(Optional.of(pix));
-            when(itemRepository.findById(3L)).thenReturn(Optional.of(item(3L, "Cerveja", "9.00")));
+            when(formaDePagamentoService.buscarEntidadePorId(2L)).thenReturn(pix);
+            when(itemService.buscarEntidadePorId(3L)).thenReturn(item(3L, "Cerveja", "9.00"));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             service.registrarPedido(new AdicionarPedidoRequest(LOJA_ID, 1L, null, 2L,

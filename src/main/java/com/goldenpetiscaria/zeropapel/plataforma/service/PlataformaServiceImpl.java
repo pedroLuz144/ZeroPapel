@@ -2,12 +2,13 @@ package com.goldenpetiscaria.zeropapel.plataforma.service;
 
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.dto.request.AdicionarPlataformaRequest;
 import com.goldenpetiscaria.zeropapel.plataforma.dto.request.AtualizarPlataformaRequest;
 import com.goldenpetiscaria.zeropapel.plataforma.dto.response.PlataformaResponseDTO;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import com.goldenpetiscaria.zeropapel.plataforma.evento.ExclusaoDePlataformaSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.plataforma.repository.PlataformaRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,11 +19,11 @@ import java.util.Optional;
 public class PlataformaServiceImpl implements PlataformaService {
 
     private final PlataformaRepository plataformaRepository;
-    private final PedidoRepository pedidoRepository;
+    private final ApplicationEventPublisher eventos;
 
-    public PlataformaServiceImpl(PlataformaRepository plataformaRepository, PedidoRepository pedidoRepository) {
+    public PlataformaServiceImpl(PlataformaRepository plataformaRepository, ApplicationEventPublisher eventos) {
         this.plataformaRepository = plataformaRepository;
-        this.pedidoRepository = pedidoRepository;
+        this.eventos = eventos;
     }
 
     @Override
@@ -70,9 +71,7 @@ public class PlataformaServiceImpl implements PlataformaService {
         if (ehUnicaPlataformaDeBalcao(plataforma)) {
             throw new ConflitoException("Não é possível excluir a única plataforma de balcão");
         }
-        if (pedidoRepository.existsByPlataformaId(id)) {
-            throw new ConflitoException("Não é possível excluir a plataforma pois existem pedidos vinculados a ela");
-        }
+        eventos.publishEvent(new ExclusaoDePlataformaSolicitadaEvent(id));
         plataformaRepository.delete(plataforma);
     }
 

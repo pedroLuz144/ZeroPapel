@@ -4,6 +4,7 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
+import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.ResultadoStatusExterno;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 
@@ -19,4 +20,6 @@ public interface PedidoService {
     PedidoResponseDTO atualizarStatus(Long id, StatusPedido status);
     void excluirPedido(Long id);
     ResultadoStatusExterno aplicarStatusExterno(Long plataformaId, String plataformaPedidoId, StatusPedido status);
+    List<Pedido> buscarFaturaveisDoPeriodo(LocalDateTime de, LocalDateTime ate);
+    int marcarComoFechados(LocalDateTime de, LocalDateTime ate);
 }

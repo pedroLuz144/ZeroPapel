@@ -3,6 +3,7 @@ package com.goldenpetiscaria.zeropapel.item.service;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.response.ItemResponseDTO;
+import com.goldenpetiscaria.zeropapel.item.entity.Item;
 
 import java.util.List;
 
@@ -11,5 +12,6 @@ public interface ItemService {
     List<ItemResponseDTO> visualizarCardapio();
     ItemResponseDTO atualizarItem(Long id, AtualizarItemRequest request);
     boolean excluirItemDoCardapio(Long id);
+    Item buscarEntidadePorId(Long id);
 }
 

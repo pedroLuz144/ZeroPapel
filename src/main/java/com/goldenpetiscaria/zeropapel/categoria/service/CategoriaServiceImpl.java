@@ -4,10 +4,11 @@ import com.goldenpetiscaria.zeropapel.categoria.dto.request.AdicionarCategoriaRe
 import com.goldenpetiscaria.zeropapel.categoria.dto.request.AtualizarCategoriaRequest;
 import com.goldenpetiscaria.zeropapel.categoria.dto.response.CategoriaResponseDTO;
 import com.goldenpetiscaria.zeropapel.categoria.entity.Categoria;
+import com.goldenpetiscaria.zeropapel.categoria.evento.ExclusaoDeCategoriaSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.categoria.repository.CategoriaRepository;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,11 +18,11 @@ import java.util.Optional;
 public class CategoriaServiceImpl implements CategoriaService {
 
     private final CategoriaRepository categoriaRepository;
-    private final ItemRepository itemRepository;
+    private final ApplicationEventPublisher eventos;
 
-    public CategoriaServiceImpl(CategoriaRepository categoriaRepository, ItemRepository itemRepository) {
+    public CategoriaServiceImpl(CategoriaRepository categoriaRepository, ApplicationEventPublisher eventos) {
         this.categoriaRepository = categoriaRepository;
-        this.itemRepository = itemRepository;
+        this.eventos = eventos;
     }
 
     @Override
@@ -41,8 +42,7 @@ public class CategoriaServiceImpl implements CategoriaService {
 
     @Override
     public CategoriaResponseDTO atualizarCategoria(Long id, AtualizarCategoriaRequest request) {
-        Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada para o ID informado"));
+        Categoria categoria = buscarEntidadePorId(id);
         Optional<Categoria> existente = categoriaRepository.findByNome(request.nome());
         if (existente.isPresent() && !existente.get().getId().equals(id)) {
             throw new ConflitoException("Já existe uma categoria com o nome: " + request.nome());
@@ -53,12 +53,15 @@ public class CategoriaServiceImpl implements CategoriaService {
 
     @Override
     public void excluirCategoria(Long id) {
-        Categoria categoria = categoriaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada para o ID informado"));
-        if (itemRepository.existsByCategoriaId(id)) {
-            throw new ConflitoException("Não é possível excluir a categoria pois existem itens vinculados a ela");
-        }
+        Categoria categoria = buscarEntidadePorId(id);
+        eventos.publishEvent(new ExclusaoDeCategoriaSolicitadaEvent(id));
         categoriaRepository.delete(categoria);
+    }
+
+    @Override
+    public Categoria buscarEntidadePorId(Long id) {
+        return categoriaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada para o ID informado"));
     }
 
     private CategoriaResponseDTO toDTO(Categoria categoria) {

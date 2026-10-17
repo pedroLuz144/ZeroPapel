@@ -21,8 +21,8 @@ import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RequisicaoInvalidaException;
-import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
-import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import com.goldenpetiscaria.zeropapel.formadepagamento.service.FormaDePagamentoService;
+import com.goldenpetiscaria.zeropapel.item.service.ItemService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
@@ -44,19 +44,19 @@ public class PedidoServiceImpl implements PedidoService {
 
     private final PedidoRepository pedidoRepository;
     private final CanalDeVendaService canalDeVendaService;
-    private final FormaDePagamentoRepository formaDePagamentoRepository;
-    private final ItemRepository itemRepository;
+    private final FormaDePagamentoService formaDePagamentoService;
+    private final ItemService itemService;
     private final Validator validator;
 
     public PedidoServiceImpl(PedidoRepository pedidoRepository,
                              CanalDeVendaService canalDeVendaService,
-                             FormaDePagamentoRepository formaDePagamentoRepository,
-                             ItemRepository itemRepository,
+                             FormaDePagamentoService formaDePagamentoService,
+                             ItemService itemService,
                              Validator validator) {
         this.pedidoRepository = pedidoRepository;
         this.canalDeVendaService = canalDeVendaService;
-        this.formaDePagamentoRepository = formaDePagamentoRepository;
-        this.itemRepository = itemRepository;
+        this.formaDePagamentoService = formaDePagamentoService;
+        this.itemService = itemService;
         this.validator = validator;
     }
 
@@ -251,16 +251,26 @@ public class PedidoServiceImpl implements PedidoService {
         return toDTO(pedidoRepository.save(pedido));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public List<Pedido> buscarFaturaveisDoPeriodo(LocalDateTime de, LocalDateTime ate) {
+        return pedidoRepository.findFaturaveisDoPeriodoComItens(de, ate);
+    }
+
+    @Override
+    @Transactional
+    public int marcarComoFechados(LocalDateTime de, LocalDateTime ate) {
+        return pedidoRepository.marcarComoFechados(de, ate);
+    }
+
     private FormaDePagamento buscarFormaDePagamento(Long formaDePagamentoId) {
-        return formaDePagamentoRepository.findById(formaDePagamentoId)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
+        return formaDePagamentoService.buscarEntidadePorId(formaDePagamentoId);
     }
 
     private List<ItemPedido> montarItensPedido(List<ItemPedidoRequest> itensRequest, Pedido pedido) {
         List<ItemPedido> itensPedido = new ArrayList<>();
         for (ItemPedidoRequest itemRequest : itensRequest) {
-            Item item = itemRepository.findById(itemRequest.itemId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Item não encontrado para o ID informado: " + itemRequest.itemId()));
+            Item item = itemService.buscarEntidadePorId(itemRequest.itemId());
             ItemPedido itemPedido = new ItemPedido();
             itemPedido.setPedido(pedido);
             itemPedido.setItem(item);

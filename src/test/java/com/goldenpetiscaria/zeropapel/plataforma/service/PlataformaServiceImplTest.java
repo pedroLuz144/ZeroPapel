@@ -1,21 +1,25 @@
 package com.goldenpetiscaria.zeropapel.plataforma.service;
 
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
-import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.dto.request.AtualizarPlataformaRequest;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import com.goldenpetiscaria.zeropapel.plataforma.evento.ExclusaoDePlataformaSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.plataforma.repository.PlataformaRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -27,7 +31,7 @@ class PlataformaServiceImplTest {
     private PlataformaRepository plataformaRepository;
 
     @Mock
-    private PedidoRepository pedidoRepository;
+    private ApplicationEventPublisher eventos;
 
     @InjectMocks
     private PlataformaServiceImpl service;
@@ -49,7 +53,6 @@ class PlataformaServiceImplTest {
         Plataforma balcao = plataforma(1L, "Balcão", false);
         when(plataformaRepository.findById(1L)).thenReturn(Optional.of(balcao));
         when(plataformaRepository.countByEntregaFalse()).thenReturn(2L);
-        when(pedidoRepository.existsByPlataformaId(1L)).thenReturn(false);
 
         service.excluirPlataforma(1L);
 
@@ -60,12 +63,36 @@ class PlataformaServiceImplTest {
     void excluirPlataforma_naoConsultaOBalcao_quandoAPlataformaEDeEntrega() {
         Plataforma ifood = plataforma(2L, "iFood", true);
         when(plataformaRepository.findById(2L)).thenReturn(Optional.of(ifood));
-        when(pedidoRepository.existsByPlataformaId(2L)).thenReturn(false);
 
         service.excluirPlataforma(2L);
 
         verify(plataformaRepository, never()).countByEntregaFalse();
         verify(plataformaRepository).delete(ifood);
+    }
+
+    @Test
+    void excluirPlataforma_publicaASolicitacaoDeExclusaoAntesDeExcluir() {
+        Plataforma ifood = plataforma(2L, "iFood", true);
+        when(plataformaRepository.findById(2L)).thenReturn(Optional.of(ifood));
+
+        service.excluirPlataforma(2L);
+
+        InOrder ordem = inOrder(eventos, plataformaRepository);
+        ordem.verify(eventos).publishEvent(new ExclusaoDePlataformaSolicitadaEvent(2L));
+        ordem.verify(plataformaRepository).delete(ifood);
+    }
+
+    @Test
+    void excluirPlataforma_naoExclui_quandoUmOuvinteRecusa() {
+        Plataforma ifood = plataforma(2L, "iFood", true);
+        when(plataformaRepository.findById(2L)).thenReturn(Optional.of(ifood));
+        doThrow(new ConflitoException("pedidos vinculados"))
+                .when(eventos).publishEvent(new ExclusaoDePlataformaSolicitadaEvent(2L));
+
+        assertThatThrownBy(() -> service.excluirPlataforma(2L))
+                .isInstanceOf(ConflitoException.class);
+
+        verify(plataformaRepository, never()).delete(any());
     }
 
     @Test

@@ -14,7 +14,7 @@ import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
-import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
+import com.goldenpetiscaria.zeropapel.pedido.service.PedidoService;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
@@ -50,7 +50,7 @@ class FechamentoServiceImplTest {
     private FechamentoCaixaRepository fechamentoRepository;
 
     @Mock
-    private PedidoRepository pedidoRepository;
+    private PedidoService pedidoService;
 
     @InjectMocks
     private FechamentoServiceImpl service;
@@ -418,9 +418,8 @@ class FechamentoServiceImplTest {
 
             service.calcularPrevia(DE, ATE);
 
-            verify(pedidoRepository).findFaturaveisDoPeriodoComItens(DE, ATE);
-            verify(pedidoRepository, never()).findAll();
-        }
+            verify(pedidoService).buscarFaturaveisDoPeriodo(DE, ATE);
+                    }
     }
 
     @Nested
@@ -476,7 +475,7 @@ class FechamentoServiceImplTest {
 
             service.realizarFechamento(new RealizarFechamentoRequest(DE, ATE), gerente());
 
-            verify(pedidoRepository).marcarComoFechados(DE, ATE);
+            verify(pedidoService).marcarComoFechados(DE, ATE);
         }
 
         @Test
@@ -487,7 +486,7 @@ class FechamentoServiceImplTest {
             assertThatThrownBy(() -> service.realizarFechamento(new RealizarFechamentoRequest(DE, ATE), gerente()))
                     .isInstanceOf(ConflitoException.class);
 
-            verify(pedidoRepository, never()).marcarComoFechados(any(), any());
+            verify(pedidoService, never()).marcarComoFechados(any(), any());
         }
 
         @Test
@@ -496,7 +495,7 @@ class FechamentoServiceImplTest {
 
             service.calcularPrevia(DE, ATE);
 
-            verify(pedidoRepository, never()).marcarComoFechados(any(), any());
+            verify(pedidoService, never()).marcarComoFechados(any(), any());
         }
     }
 
@@ -547,7 +546,7 @@ class FechamentoServiceImplTest {
     }
 
     private void darPedidos(Pedido... pedidos) {
-        when(pedidoRepository.findFaturaveisDoPeriodoComItens(DE, ATE)).thenReturn(List.of(pedidos));
+        when(pedidoService.buscarFaturaveisDoPeriodo(DE, ATE)).thenReturn(List.of(pedidos));
     }
 
     private Pedido pedido(String valor, CanalDeVenda canal, FormaDePagamento formaDePagamento, int hora) {

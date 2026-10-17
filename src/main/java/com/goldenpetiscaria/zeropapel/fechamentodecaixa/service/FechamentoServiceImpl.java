@@ -10,7 +10,7 @@ import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
+import com.goldenpetiscaria.zeropapel.pedido.service.PedidoService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,12 +27,12 @@ public class FechamentoServiceImpl implements FechamentoService {
     private static final BigDecimal CEM = new BigDecimal("100");
 
     private final FechamentoCaixaRepository fechamentoRepository;
-    private final PedidoRepository pedidoRepository;
+    private final PedidoService pedidoService;
 
     public FechamentoServiceImpl(FechamentoCaixaRepository fechamentoRepository,
-                                 PedidoRepository pedidoRepository) {
+                                 PedidoService pedidoService) {
         this.fechamentoRepository = fechamentoRepository;
-        this.pedidoRepository = pedidoRepository;
+        this.pedidoService = pedidoService;
     }
 
     @Override
@@ -42,7 +42,7 @@ public class FechamentoServiceImpl implements FechamentoService {
             throw new ConflitoException("Já existe um fechamento para esse período.");
         }
 
-        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(request.de(), request.ate());
+        List<Pedido> pedidos = pedidoService.buscarFaturaveisDoPeriodo(request.de(), request.ate());
         FechamentoResponseDTO calculado = calcularFechamento(request.de(), request.ate(), pedidos);
 
         FechamentoCaixa fechamento = new FechamentoCaixa();
@@ -57,7 +57,7 @@ public class FechamentoServiceImpl implements FechamentoService {
         fechamento.setTicketMedio(calculado.resumo().ticketMedio());
 
         FechamentoCaixa salvo = fechamentoRepository.save(fechamento);
-        pedidoRepository.marcarComoFechados(request.de(), request.ate());
+        pedidoService.marcarComoFechados(request.de(), request.ate());
 
         return new FechamentoResponseDTO(
                 salvo.getId(),
@@ -84,7 +84,7 @@ public class FechamentoServiceImpl implements FechamentoService {
                 fechamento.getTicketMedio()
         );
 
-        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(fechamento.getDe(), fechamento.getAte());
+        List<Pedido> pedidos = pedidoService.buscarFaturaveisDoPeriodo(fechamento.getDe(), fechamento.getAte());
         FechamentoResponseDTO breakdowns = calcularFechamento(fechamento.getDe(), fechamento.getAte(), pedidos);
 
         return new FechamentoResponseDTO(
@@ -101,7 +101,7 @@ public class FechamentoServiceImpl implements FechamentoService {
 
     @Override
     public FechamentoResponseDTO calcularPrevia(LocalDateTime de, LocalDateTime ate) {
-        List<Pedido> pedidos = pedidoRepository.findFaturaveisDoPeriodoComItens(de, ate);
+        List<Pedido> pedidos = pedidoService.buscarFaturaveisDoPeriodo(de, ate);
         return calcularFechamento(de, ate, pedidos);
     }
 
