@@ -7,7 +7,9 @@ import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.response.ItemResponseDTO;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
+import com.goldenpetiscaria.zeropapel.item.evento.ExclusaoDeItemSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -18,10 +20,13 @@ public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository repository;
     private final CategoriaService categoriaService;
+    private final ApplicationEventPublisher eventos;
 
-    public ItemServiceImpl(ItemRepository repository, CategoriaService categoriaService) {
+    public ItemServiceImpl(ItemRepository repository, CategoriaService categoriaService,
+                           ApplicationEventPublisher eventos) {
         this.repository = repository;
         this.categoriaService = categoriaService;
+        this.eventos = eventos;
     }
 
     @Override
@@ -60,6 +65,7 @@ public class ItemServiceImpl implements ItemService {
     public boolean excluirItemDoCardapio(Long id) {
         Optional<Item> optionalItem = repository.findById(id);
         if (optionalItem.isEmpty()) throw new RecursoNaoEncontradoException("Item não encontrado para o ID informado");
+        eventos.publishEvent(new ExclusaoDeItemSolicitadaEvent(id));
         repository.delete(optionalItem.get());
         return true;
     }

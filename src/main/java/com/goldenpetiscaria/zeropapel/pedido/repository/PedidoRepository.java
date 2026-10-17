@@ -15,6 +15,7 @@ import java.util.Optional;
 public interface PedidoRepository extends JpaRepository<Pedido, Long> {
     boolean existsByPlataformaId(Long plataformaId);
     boolean existsByFormaDePagamentoId(Long formaDePagamentoId);
+    boolean existsByItensItemId(Long itemId);
     Optional<Pedido> findByPlataformaIdAndPlataformaPedidoId(Long plataformaId, String plataformaPedidoId);
 
     @Query("SELECT DISTINCT p FROM Pedido p " +

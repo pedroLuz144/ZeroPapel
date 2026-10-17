@@ -2,6 +2,7 @@ package com.goldenpetiscaria.zeropapel.pedido.listener;
 
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.evento.ExclusaoDeFormaDePagamentoSolicitadaEvent;
+import com.goldenpetiscaria.zeropapel.item.evento.ExclusaoDeItemSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.evento.ExclusaoDePlataformaSolicitadaEvent;
 import org.junit.jupiter.api.Test;
@@ -56,6 +57,24 @@ class CadastroVinculadoAPedidoListenerTest {
 
         assertThatCode(() -> listener.aoSolicitarExclusaoDeFormaDePagamento(
                 new ExclusaoDeFormaDePagamentoSolicitadaEvent(3L)))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void recusaExcluirItem_quandoHaPedidoVinculado_sugerindoDesativar() {
+        when(pedidoRepository.existsByItensItemId(7L)).thenReturn(true);
+
+        assertThatThrownBy(() -> listener.aoSolicitarExclusaoDeItem(new ExclusaoDeItemSolicitadaEvent(7L)))
+                .isInstanceOf(ConflitoException.class)
+                .hasMessageContaining("pedidos vinculados")
+                .hasMessageContaining("Desative");
+    }
+
+    @Test
+    void deixaExcluirItem_semPedidoVinculado() {
+        when(pedidoRepository.existsByItensItemId(7L)).thenReturn(false);
+
+        assertThatCode(() -> listener.aoSolicitarExclusaoDeItem(new ExclusaoDeItemSolicitadaEvent(7L)))
                 .doesNotThrowAnyException();
     }
 }

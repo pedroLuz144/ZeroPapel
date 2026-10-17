@@ -65,11 +65,13 @@ retorno é só para uso entre services: controller continua devolvendo ResponseD
 motivo `PedidoService` expõe `buscarFaturaveisDoPeriodo` e `marcarComoFechados` para o
 `fechamentodecaixa`.
 
-**"Não exclua, está em uso" é veto por evento.** `plataforma`, `formadepagamento` e `categoria`
-não podem consultar quem as referencia (`pedido` e `item` já dependem delas). Antes de excluir,
+**"Não exclua, está em uso" é veto por evento.** `plataforma`, `formadepagamento`, `categoria` e
+`item` não podem consultar quem os referencia (`pedido` e `item` já dependem deles). Antes de excluir,
 o service publica `ExclusaoDe<X>SolicitadaEvent` (pacote `evento/` do dono) e o listener da feature
 que referencia recusa com `ConflitoException`: `pedido/listener/CadastroVinculadoAPedidoListener`
-para plataforma e forma de pagamento, `item/listener/CategoriaVinculadaAItemListener` para
+para plataforma, forma de pagamento e item do cardápio (`ExclusaoDeItemSolicitadaEvent`; a
+mensagem sugere desativar o item, porque `fk_itens_pedido_item` não tem `on delete` e, sem o
+veto, excluir item já vendido estourava a FK e respondia 500), `item/listener/CategoriaVinculadaAItemListener` para
 categoria. O listener é síncrono, então a exceção chega ao controller como 409 e nada é excluído.
 `security/UsuarioDetailsServiceImpl` continua com o `UsuarioRepository`: é infraestrutura, não
 feature, e passar pelo `UsuarioService` faria a cadeia `SecurityConfig` → `UsuarioService` →
@@ -197,8 +199,8 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (17/10/2026):** 311 testes no Java sem o `CdpApplicationTests` (que exige
-MariaDB no ar): 309 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (17/10/2026):** 316 testes no Java sem o `CdpApplicationTests` (que exige
+MariaDB no ar): 314 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
@@ -219,7 +221,8 @@ MariaDB no ar): 309 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`)
 | `IfoodApiRealTest` (2, ignorados) | chama o iFood de verdade (token + listagem de lojas; polling de eventos **sem** acknowledgment), só leitura; só roda com `IFOOD_TESTE_REAL=true` |
 | `LojaServiceImplTest` (8) | cadastro (publica `LojaCadastradaEvent`), nome único, invariante da única loja ativa, loja inexistente |
 | `PlataformaServiceImplTest` (7) | a única plataforma de balcão não pode ser excluída nem virar entrega; busca do balcão; publica a solicitação de exclusão antes de excluir e não exclui com veto |
-| `CadastroVinculadoAPedidoListenerTest` (4) | veta excluir plataforma ou forma de pagamento com pedido vinculado |
+| `ItemServiceImplTest` (3) | exclusão de item: publica a solicitação antes de excluir, não exclui com veto, item inexistente não publica |
+| `CadastroVinculadoAPedidoListenerTest` (6) | veta excluir plataforma, forma de pagamento ou item do cardápio com pedido vinculado (no item, a mensagem sugere desativar) |
 | `CategoriaVinculadaAItemListenerTest` (2) | veta excluir categoria com item vinculado |
 | `LimiteDeTentativasDeLoginServiceImplTest` (14) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas, espaços, acento e largura total na mesma chave; mapa cheio recusa login novo com 429 sem passar do limite, não expulsa nem zera o contador de login real, continua contando login já acompanhado, abre espaço quando uma janela vence e descarta os vencidos |
 | `RefreshTokenServiceImplTest` (9) | rotação, expiração, recusa de usuário inativo, revogação de um token e de todos os tokens do usuário |
@@ -230,7 +233,7 @@ MariaDB no ar): 309 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`)
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
 | `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
 
-Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `FormaDePagamentoServiceImpl`,
+Sem teste ainda: o resto do `ItemServiceImpl` (só a exclusão tem), `CategoriaServiceImpl`, `FormaDePagamentoServiceImpl`,
 `CanalDeBalcaoListener` e os controllers. Os cabeçalhos montados pela cadeia de filtros não têm
 teste automatizado (o `SecurityConfigTest` só confere as constantes); foram conferidos com `curl`
 na aplicação rodando em 17/10/2026. O frontend tem só

@@ -2,6 +2,7 @@ package com.goldenpetiscaria.zeropapel.pedido.listener;
 
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.evento.ExclusaoDeFormaDePagamentoSolicitadaEvent;
+import com.goldenpetiscaria.zeropapel.item.evento.ExclusaoDeItemSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.evento.ExclusaoDePlataformaSolicitadaEvent;
 import org.springframework.context.event.EventListener;
@@ -27,6 +28,13 @@ public class CadastroVinculadoAPedidoListener {
     public void aoSolicitarExclusaoDeFormaDePagamento(ExclusaoDeFormaDePagamentoSolicitadaEvent evento) {
         if (pedidoRepository.existsByFormaDePagamentoId(evento.formaDePagamentoId())) {
             throw new ConflitoException("Não é possível excluir a forma de pagamento pois existem pedidos vinculados a ela");
+        }
+    }
+
+    @EventListener
+    public void aoSolicitarExclusaoDeItem(ExclusaoDeItemSolicitadaEvent evento) {
+        if (pedidoRepository.existsByItensItemId(evento.itemId())) {
+            throw new ConflitoException("Não é possível excluir o item pois existem pedidos vinculados a ele. Desative o item para tirá-lo do cardápio");
         }
     }
 }
