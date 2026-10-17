@@ -1,0 +1,15 @@
+meta {
+  name: Excluir Canal de Venda
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/canaisDeVenda/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

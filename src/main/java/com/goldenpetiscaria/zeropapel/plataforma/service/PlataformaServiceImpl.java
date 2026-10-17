@@ -32,7 +32,7 @@ public class PlataformaServiceImpl implements PlataformaService {
         }
         Plataforma plataforma = new Plataforma();
         plataforma.setNome(request.nome());
-        plataforma.setTaxaPercentual(request.taxaPercentual());
+        plataforma.setEntrega(request.entrega() == null || request.entrega());
         return toDTO(plataformaRepository.save(plataforma));
     }
 
@@ -47,8 +47,7 @@ public class PlataformaServiceImpl implements PlataformaService {
 
     @Override
     public PlataformaResponseDTO atualizarPlataforma(Long id, AtualizarPlataformaRequest request) {
-        Plataforma plataforma = plataformaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+        Plataforma plataforma = buscarEntidadePorId(id);
         if (request.nome() != null) {
             Optional<Plataforma> existente = plataformaRepository.findByNome(request.nome());
             if (existente.isPresent() && !existente.get().getId().equals(id)) {
@@ -56,23 +55,47 @@ public class PlataformaServiceImpl implements PlataformaService {
             }
             plataforma.setNome(request.nome());
         }
-        if (request.taxaPercentual() != null) {
-            plataforma.setTaxaPercentual(request.taxaPercentual());
+        if (request.entrega() != null) {
+            if (request.entrega() && ehUnicaPlataformaDeBalcao(plataforma)) {
+                throw new ConflitoException("Não é possível marcar como entrega a única plataforma de balcão");
+            }
+            plataforma.setEntrega(request.entrega());
         }
         return toDTO(plataformaRepository.save(plataforma));
     }
 
     @Override
     public void excluirPlataforma(Long id) {
-        Plataforma plataforma = plataformaRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+        Plataforma plataforma = buscarEntidadePorId(id);
+        if (ehUnicaPlataformaDeBalcao(plataforma)) {
+            throw new ConflitoException("Não é possível excluir a única plataforma de balcão");
+        }
         if (pedidoRepository.existsByPlataformaId(id)) {
             throw new ConflitoException("Não é possível excluir a plataforma pois existem pedidos vinculados a ela");
         }
         plataformaRepository.delete(plataforma);
     }
 
+    @Override
+    public Plataforma buscarEntidadePorId(Long id) {
+        return plataformaRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Plataforma não encontrada para o ID informado"));
+    }
+
+    @Override
+    public Optional<Plataforma> buscarPlataformaDeBalcao() {
+        return plataformaRepository.findFirstByEntregaFalseOrderByIdAsc();
+    }
+
+    private boolean ehUnicaPlataformaDeBalcao(Plataforma plataforma) {
+        return !plataforma.isEntrega() && plataformaRepository.countByEntregaFalse() == 1;
+    }
+
     private PlataformaResponseDTO toDTO(Plataforma plataforma) {
-        return new PlataformaResponseDTO(plataforma.getId(), plataforma.getNome(), plataforma.getTaxaPercentual());
+        return new PlataformaResponseDTO(
+                plataforma.getId(),
+                plataforma.getNome(),
+                plataforma.isEntrega()
+        );
     }
 }

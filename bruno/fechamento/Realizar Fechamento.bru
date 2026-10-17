@@ -1,0 +1,26 @@
+meta {
+  name: Realizar Fechamento
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/fechamento
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "de": "2025-01-01T18:00:00",
+    "ate": "2025-01-02T02:00:00"
+  }
+}
+
+vars:pre-request {
+  accessToken: eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJlbGlhbmUiLCJpYXQiOjE3ODMzODUzMTAsImV4cCI6MTc4MzQ3MTcxMH0.zHIeUr3x_zdOC0gmw0rNzxDyxqAXplA06cNBGxYcgOg
+}

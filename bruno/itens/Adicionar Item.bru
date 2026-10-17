@@ -1,0 +1,24 @@
+meta {
+  name: Adicionar Item
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/itens
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Bolinho de Bacalhau",
+    "categoria": 1,
+    "preco": 12.50,
+    "descricao": "Porção com 6 unidades"
+  }
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Adicionar Loja
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/lojas
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Loja Centro"
+  }
+}

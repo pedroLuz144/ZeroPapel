@@ -1,0 +1,15 @@
+meta {
+  name: Listar Pedidos
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/pedidos
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

@@ -46,4 +46,11 @@ public class UsuarioController {
     public void desativar(@PathVariable Long id) {
         usuarioService.desativarUsuario(id);
     }
+
+    @PatchMapping("/{id}/ativar")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('GERENTE')")
+    public void ativar(@PathVariable Long id) {
+        usuarioService.ativarUsuario(id);
+    }
 }

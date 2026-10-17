@@ -27,6 +27,7 @@ public class Usuario implements UserDetails {
     @Column(nullable = false)
     private String nome;
 
+    @Setter
     @Column(nullable = false, unique = true)
     private String usuario;
 

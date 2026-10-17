@@ -1,0 +1,25 @@
+meta {
+  name: Atualizar Item
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/itens/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Bolinho de Bacalhau Premium",
+    "categoria": 1,
+    "preco": 15.00,
+    "status": "ATIVO",
+    "descricao": "Porção com 8 unidades"
+  }
+}

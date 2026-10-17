@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Size;
 
 public record AtualizarUsuarioRequest(
         String nome,
+        String usuario,
         Cargo cargo,
         @Size(min = 4, message = "Senha deve ter no mínimo 4 caracteres")
         String senha

@@ -7,6 +7,9 @@ import jakarta.validation.constraints.NotNull;
 import java.util.List;
 
 public record AdicionarPedidoRequest(
+        @NotNull(message = "A loja é obrigatória")
+        Long lojaId,
+
         @NotNull(message = "A plataforma é obrigatória")
         Long plataformaId,
 

@@ -5,10 +5,13 @@ import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.response.FechamentoR
 import com.goldenpetiscaria.zeropapel.fechamentodecaixa.dto.request.RealizarFechamentoRequest;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface FechamentoService {
     FechamentoResponseDTO realizarFechamento(RealizarFechamentoRequest request, Usuario usuario);
     FechamentoResponseDTO buscarFechamentoPorId(Long id);
     List<FechamentoCaixaListagemDTO> listarFechamentos();
+
+    FechamentoResponseDTO calcularPrevia(LocalDateTime de, LocalDateTime ate);
 }

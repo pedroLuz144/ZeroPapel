@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -25,16 +26,21 @@ import java.util.List;
 @EnableWebSecurity
 @EnableMethodSecurity
 public class SecurityConfig {
-
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
+    private final PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado;
+    private final ManipuladorDeAcessoNegado manipuladorDeAcessoNegado;
 
     public SecurityConfig(
             JwtFilter jwtFilter,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado,
+            ManipuladorDeAcessoNegado manipuladorDeAcessoNegado
     ) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
+        this.pontoDeEntradaNaoAutenticado = pontoDeEntradaNaoAutenticado;
+        this.manipuladorDeAcessoNegado = manipuladorDeAcessoNegado;
     }
 
     @Value("${cors.allowed-origin}")
@@ -46,11 +52,18 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/login.html", "/dashboard.html", "/").permitAll()
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/", "/index.html", "/login", "/app/**",
+                                "/assets/**", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(excecoes -> excecoes
+                        .authenticationEntryPoint(pontoDeEntradaNaoAutenticado)
+                        .accessDeniedHandler(manipuladorDeAcessoNegado)
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
