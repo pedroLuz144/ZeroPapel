@@ -210,3 +210,128 @@
   font-size: 13px;
   padding: 8px 0;
 }
+
+@media (max-width: 720px) {
+  .painel {
+    padding: 16px;
+  }
+
+  .painel__cabecalho > .btn,
+  .barra-acoes > .btn {
+    flex: 1 0 auto;
+  }
+
+  .link-acao {
+    font-size: 13px;
+    padding: 6px 2px;
+  }
+
+  .link-acao + .link-acao {
+    margin-left: 18px;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 0 16px;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    white-space: nowrap;
+    padding: 11px 14px;
+  }
+
+  .metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .metrica {
+    padding: 12px 14px;
+  }
+
+  .metrica__valor {
+    font-size: 19px;
+    margin-top: 4px;
+  }
+
+  .tabela--cartoes thead {
+    display: none;
+  }
+
+  .tabela--cartoes,
+  .tabela--cartoes tbody,
+  .tabela--cartoes tfoot,
+  .tabela--cartoes tr {
+    display: block;
+    width: 100%;
+  }
+
+  .tabela--cartoes tr {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio);
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    background: var(--cor-superficie);
+  }
+
+  .tabela--cartoes td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    text-align: right;
+  }
+
+  .tabela--cartoes td:last-child {
+    border-bottom: none;
+  }
+
+  .tabela--cartoes td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    color: var(--cor-texto-fraco);
+    font-size: 12px;
+    font-weight: 400;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .tabela--cartoes td:not([data-rotulo]) {
+    justify-content: flex-start;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .tabela--cartoes td.num:not([data-rotulo]) {
+    justify-content: flex-end;
+    font-weight: 400;
+  }
+
+  .tabela--cartoes td.tabela__vazio {
+    justify-content: center;
+    font-weight: 400;
+  }
+
+  .tabela--cartoes tbody tr:hover td {
+    background: transparent;
+  }
+
+  .tabela--cartoes tfoot tr {
+    background: var(--cor-superficie-3);
+    border-color: var(--cor-borda-forte);
+  }
+
+  .tabela--cartoes tfoot td,
+  .tabela--cartoes tfoot tr:hover td {
+    background: transparent;
+  }
+}

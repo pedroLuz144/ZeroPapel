@@ -288,7 +288,7 @@ async function abrir(id: number): Promise<void> {
       <section class="painel bloco">
         <h2 class="painel__titulo">Detalhamento por plataforma</h2>
         <div class="tabela-scroll">
-          <table class="tabela">
+          <table class="tabela tabela--cartoes">
             <thead>
               <tr>
                 <th>Plataforma</th>
@@ -302,21 +302,21 @@ async function abrir(id: number): Promise<void> {
             <tbody>
               <tr v-for="l in atual.porPlataforma" :key="l.plataforma">
                 <td>{{ l.plataforma }}</td>
-                <td class="num">{{ l.qtdPedidos }}</td>
-                <td class="num">{{ moeda(l.bruto) }}</td>
-                <td class="num">{{ moeda(l.taxaPlataforma) }}</td>
-                <td class="num">{{ moeda(l.taxaPagamento) }}</td>
-                <td class="num">{{ moeda(l.liquido) }}</td>
+                <td class="num" data-rotulo="Pedidos">{{ l.qtdPedidos }}</td>
+                <td class="num" data-rotulo="Bruto">{{ moeda(l.bruto) }}</td>
+                <td class="num" data-rotulo="Taxa plataforma">{{ moeda(l.taxaPlataforma) }}</td>
+                <td class="num" data-rotulo="Taxa pagamento">{{ moeda(l.taxaPagamento) }}</td>
+                <td class="num" data-rotulo="Líquido">{{ moeda(l.liquido) }}</td>
               </tr>
             </tbody>
             <tfoot>
               <tr>
                 <td>Total</td>
-                <td class="num">{{ totalPlataformas.qtd }}</td>
-                <td class="num">{{ moeda(totalPlataformas.bruto) }}</td>
-                <td class="num">{{ moeda(totalPlataformas.taxaPlataforma) }}</td>
-                <td class="num">{{ moeda(totalPlataformas.taxaPagamento) }}</td>
-                <td class="num">{{ moeda(totalPlataformas.liquido) }}</td>
+                <td class="num" data-rotulo="Pedidos">{{ totalPlataformas.qtd }}</td>
+                <td class="num" data-rotulo="Bruto">{{ moeda(totalPlataformas.bruto) }}</td>
+                <td class="num" data-rotulo="Taxa plataforma">{{ moeda(totalPlataformas.taxaPlataforma) }}</td>
+                <td class="num" data-rotulo="Taxa pagamento">{{ moeda(totalPlataformas.taxaPagamento) }}</td>
+                <td class="num" data-rotulo="Líquido">{{ moeda(totalPlataformas.liquido) }}</td>
               </tr>
             </tfoot>
           </table>
@@ -387,7 +387,7 @@ async function abrir(id: number): Promise<void> {
       e recalcula sempre a partir dos pedidos atuais.
     </p>
     <div class="tabela-scroll">
-      <table class="tabela">
+      <table class="tabela tabela--cartoes">
         <thead>
           <tr>
             <th>Período</th>
@@ -410,13 +410,13 @@ async function abrir(id: number): Promise<void> {
           </tr>
           <tr v-for="fc in historico" :key="fc.id">
             <td>{{ dataHora(fc.de) }} → {{ dataHora(fc.ate) }}</td>
-            <td>{{ dataHora(fc.geradoEm) }}</td>
-            <td>{{ fc.geradoPorNome }}</td>
-            <td class="num">{{ fc.totalPedidos }}</td>
-            <td class="num">{{ moeda(fc.faturamentoBruto) }}</td>
-            <td class="num">{{ moeda(fc.totalTaxas) }}</td>
-            <td class="num">{{ moeda(fc.faturamentoLiquido) }}</td>
-            <td class="num">{{ moeda(fc.ticketMedio) }}</td>
+            <td data-rotulo="Gerado em">{{ dataHora(fc.geradoEm) }}</td>
+            <td data-rotulo="Gerado por">{{ fc.geradoPorNome }}</td>
+            <td class="num" data-rotulo="Pedidos">{{ fc.totalPedidos }}</td>
+            <td class="num" data-rotulo="Bruto">{{ moeda(fc.faturamentoBruto) }}</td>
+            <td class="num" data-rotulo="Taxas">{{ moeda(fc.totalTaxas) }}</td>
+            <td class="num" data-rotulo="Líquido">{{ moeda(fc.faturamentoLiquido) }}</td>
+            <td class="num" data-rotulo="Ticket médio">{{ moeda(fc.ticketMedio) }}</td>
             <td class="num"><button class="link-acao" @click="abrir(fc.id)">Abrir</button></td>
           </tr>
         </tbody>
@@ -495,6 +495,28 @@ async function abrir(id: number): Promise<void> {
   .paineis,
   .paineis--grafico {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .periodo {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .periodo > .campo {
+    grid-column: 1 / -1;
+  }
+
+  .grafico {
+    gap: 14px;
+    height: 180px;
+  }
+
+  .legenda__valor {
+    min-width: 0;
   }
 }
 

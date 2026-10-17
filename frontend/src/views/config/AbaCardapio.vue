@@ -144,7 +144,7 @@ async function excluir(item: ItemResponse): Promise<void> {
     <div v-if="erro" class="alerta-erro">{{ erro }}</div>
 
     <div class="tabela-scroll">
-      <table class="tabela">
+      <table class="tabela tabela--cartoes">
         <thead>
           <tr>
             <th>Nome</th>
@@ -162,9 +162,9 @@ async function excluir(item: ItemResponse): Promise<void> {
           </tr>
           <tr v-for="item in itens" :key="item.id">
             <td>{{ item.nome }}</td>
-            <td>{{ item.categoriaNome }}</td>
-            <td class="num">{{ moeda(item.preco) }}</td>
-            <td>
+            <td data-rotulo="Categoria">{{ item.categoriaNome }}</td>
+            <td class="num" data-rotulo="Preço">{{ moeda(item.preco) }}</td>
+            <td data-rotulo="Status">
               <span class="badge" :class="item.status === 'ATIVO' ? 'badge--on' : 'badge--off'">
                 {{ item.status === 'ATIVO' ? 'Ativo' : 'Inativo' }}
               </span>

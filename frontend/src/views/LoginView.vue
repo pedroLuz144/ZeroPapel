@@ -120,6 +120,16 @@ async function entrar(): Promise<void> {
   width: 100%;
 }
 
+@media (max-width: 720px) {
+  .login {
+    padding: 16px;
+  }
+
+  .cartao {
+    padding: 30px 20px;
+  }
+}
+
 .cartao__nota {
   text-align: center;
   font-size: 12px;

@@ -131,6 +131,12 @@ function pedidosDaColuna(status: StatusPedido): PedidoResponse[] {
     .sort((a, b) => b.horarioPedido.localeCompare(a.horarioPedido))
 }
 
+function irParaColuna(status: StatusPedido): void {
+  document
+    .getElementById(`coluna-${status}`)
+    ?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' })
+}
+
 const colunas = computed(() => {
   const lista = mostrarCancelados.value ? STATUS_TODOS : STATUS_ATIVOS
   return lista.map((status) => ({ status, label: STATUS_LABEL[status], itens: pedidosDaColuna(status) }))
@@ -395,8 +401,27 @@ async function excluir(p: PedidoResponse): Promise<void> {
       </div>
     </div>
 
+    <nav class="atalhos" aria-label="Etapas">
+      <button
+        v-for="col in colunas"
+        :key="col.status"
+        type="button"
+        class="atalho"
+        @click="irParaColuna(col.status)"
+      >
+        <span class="coluna__dot" :style="{ background: corDot(col.status) }"></span>
+        {{ col.label }}
+        <span class="atalho__contador">{{ col.itens.length }}</span>
+      </button>
+    </nav>
+
     <div class="quadro">
-      <section v-for="col in colunas" :key="col.status" class="coluna">
+      <section
+        v-for="col in colunas"
+        :id="`coluna-${col.status}`"
+        :key="col.status"
+        class="coluna"
+      >
         <header class="coluna__cabecalho">
           <span class="coluna__titulo">
             <span class="coluna__dot" :style="{ background: corDot(col.status) }"></span>
@@ -494,7 +519,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
             <tr>
               <th>Item</th>
               <th class="num">Qtd</th>
-              <th class="num">Unit.</th>
+              <th class="num so-largo">Unit.</th>
               <th class="num">Subtotal</th>
             </tr>
           </thead>
@@ -502,7 +527,7 @@ async function excluir(p: PedidoResponse): Promise<void> {
             <tr v-for="(it, i) in detalhe.itens" :key="i">
               <td>{{ it.itemNome }}</td>
               <td class="num">{{ it.quantidade }}</td>
-              <td class="num">{{ moeda(it.precoUnitario) }}</td>
+              <td class="num so-largo">{{ moeda(it.precoUnitario) }}</td>
               <td class="num">{{ moeda(it.subtotal) }}</td>
             </tr>
           </tbody>
@@ -827,5 +852,71 @@ async function excluir(p: PedidoResponse): Promise<void> {
 
 .editor-itens {
   margin-top: 18px;
+}
+
+.atalhos {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .atalhos {
+    display: flex;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin: 0 -16px 12px;
+    padding: 0 16px;
+  }
+
+  .atalhos::-webkit-scrollbar {
+    display: none;
+  }
+
+  .atalho {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--cor-texto-suave);
+    background: var(--cor-superficie);
+    border: 1px solid var(--cor-borda);
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .atalho__contador {
+    font-weight: 600;
+    color: var(--cor-texto);
+  }
+
+  .quadro {
+    scroll-snap-type: x mandatory;
+    scroll-padding: 0 16px;
+    margin: 0 -16px;
+    padding: 0 16px 8px;
+    gap: 10px;
+  }
+
+  .coluna {
+    flex: 0 0 calc(100vw - 56px);
+    max-height: none;
+    scroll-snap-align: start;
+  }
+
+  .pedido-card__acoes {
+    padding: 8px;
+  }
+
+  .btn-avancar {
+    padding: 11px 10px;
+    font-size: 13px;
+  }
+
+  .select-status {
+    font-size: 16px;
+    padding: 8px 26px 8px 10px;
+  }
 }
 </style>

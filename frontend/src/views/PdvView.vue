@@ -245,6 +245,16 @@ async function registrar(): Promise<void> {
   }
 }
 
+@media (max-width: 720px) {
+  .pdv {
+    gap: 14px;
+  }
+
+  .pdv__rodape > .btn {
+    width: 100%;
+  }
+}
+
 .total {
   margin-top: 14px;
   text-align: right;

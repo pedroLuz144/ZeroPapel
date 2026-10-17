@@ -79,7 +79,7 @@ function remover(indice: number): void {
           <tr>
             <th>Item</th>
             <th class="num">Qtd</th>
-            <th class="num">Unit.</th>
+            <th class="num so-largo">Unit.</th>
             <th class="num">Subtotal</th>
             <th aria-label="ações"></th>
           </tr>
@@ -91,7 +91,7 @@ function remover(indice: number): void {
           <tr v-for="(linha, idx) in modelValue" :key="linha.itemId">
             <td>{{ linha.nome }}</td>
             <td class="num">{{ linha.quantidade }}</td>
-            <td class="num">{{ moeda(linha.preco) }}</td>
+            <td class="num so-largo">{{ moeda(linha.preco) }}</td>
             <td class="num">{{ moeda(linha.preco * linha.quantidade) }}</td>
             <td class="num">
               <button class="link-acao link-acao--perigo" @click="remover(idx)">Remover</button>
@@ -122,5 +122,24 @@ function remover(indice: number): void {
 
 .linha-add > .btn {
   margin-top: 22px;
+}
+
+@media (max-width: 720px) {
+  .linha-add {
+    flex-wrap: wrap;
+  }
+
+  .linha-add__campo {
+    flex-basis: 100%;
+  }
+
+  .linha-add__qtd {
+    width: 88px;
+  }
+
+  .linha-add > .btn {
+    flex: 1;
+    margin-top: 24px;
+  }
 }
 </style>

@@ -121,7 +121,7 @@ async function alternarAtivo(u: UsuarioResponse): Promise<void> {
     <div v-if="erro" class="alerta-erro">{{ erro }}</div>
 
     <div class="tabela-scroll">
-      <table class="tabela">
+      <table class="tabela tabela--cartoes">
         <thead>
           <tr>
             <th>Nome</th>
@@ -137,9 +137,9 @@ async function alternarAtivo(u: UsuarioResponse): Promise<void> {
           </tr>
           <tr v-for="u in usuarios" :key="u.id">
             <td>{{ u.nome }}</td>
-            <td>{{ u.usuario }}</td>
-            <td>{{ u.cargo === 'GERENTE' ? 'Gerente' : 'Operador' }}</td>
-            <td>
+            <td data-rotulo="Login">{{ u.usuario }}</td>
+            <td data-rotulo="Cargo">{{ u.cargo === 'GERENTE' ? 'Gerente' : 'Operador' }}</td>
+            <td data-rotulo="Status">
               <span class="badge" :class="u.ativo ? 'badge--on' : 'badge--off'">
                 {{ u.ativo ? 'Ativo' : 'Inativo' }}
               </span>
@@ -177,7 +177,7 @@ async function alternarAtivo(u: UsuarioResponse): Promise<void> {
       <BaseField
         :rotulo="editando ? 'Nova senha' : 'Senha'"
         :obrigatorio="!editando"
-        :dica="editando ? 'Deixe em branco para não alterar' : 'Mínimo 4 caracteres'"
+        :dica="editando ? 'Deixe em branco para não alterar' : 'Mínimo 8 caracteres'"
       >
         <input v-model="form.senha" type="password" />
       </BaseField>

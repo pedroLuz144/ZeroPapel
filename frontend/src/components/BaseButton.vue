@@ -73,6 +73,13 @@ withDefaults(
   background: var(--cor-erro-superficie);
 }
 
+@media (max-width: 720px) {
+  .btn {
+    min-height: 44px;
+    font-size: 14px;
+  }
+}
+
 .btn__spinner {
   width: 13px;
   height: 13px;

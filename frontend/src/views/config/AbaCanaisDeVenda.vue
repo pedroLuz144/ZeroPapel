@@ -172,7 +172,7 @@ async function excluir(registro: CanalDeVendaResponse): Promise<void> {
     </p>
 
     <div class="tabela-scroll">
-      <table class="tabela">
+      <table class="tabela tabela--cartoes">
         <thead>
           <tr>
             <th>Loja</th>
@@ -190,11 +190,13 @@ async function excluir(registro: CanalDeVendaResponse): Promise<void> {
           </tr>
           <tr v-for="r in registros" :key="r.id">
             <td>{{ r.lojaNome }}</td>
-            <td>{{ r.plataformaNome }}</td>
-            <td class="num">{{ percentual(r.taxaPercentual) }}</td>
-            <td>{{ r.merchantId ?? '—' }}</td>
-            <td>{{ ROTULOS_TRATAMENTO_ENTREGA[r.tratamentoTaxaEntrega] }}</td>
-            <td>
+            <td data-rotulo="Plataforma">{{ r.plataformaNome }}</td>
+            <td class="num" data-rotulo="Taxa">{{ percentual(r.taxaPercentual) }}</td>
+            <td data-rotulo="Merchant ID">{{ r.merchantId ?? '—' }}</td>
+            <td data-rotulo="Entrega pela plataforma">
+              {{ ROTULOS_TRATAMENTO_ENTREGA[r.tratamentoTaxaEntrega] }}
+            </td>
+            <td data-rotulo="Situação">
               <span class="badge" :class="r.ativo ? 'badge--on' : 'badge--off'">
                 {{ r.ativo ? 'Ativo' : 'Inativo' }}
               </span>

@@ -89,6 +89,31 @@ onBeforeUnmount(() => {
   margin-top: 24px;
 }
 
+@media (max-width: 720px) {
+  .modal-fundo {
+    align-items: flex-end;
+    padding: 0;
+  }
+
+  .modal,
+  .modal--largo {
+    max-width: none;
+    max-height: 92dvh;
+    border-radius: var(--raio-lg) var(--raio-lg) 0 0;
+    border-bottom: none;
+    padding: 22px 16px calc(16px + env(safe-area-inset-bottom));
+  }
+
+  .modal__acoes {
+    flex-direction: column-reverse;
+    gap: 8px;
+  }
+
+  .modal__acoes > :slotted(.btn) {
+    width: 100%;
+  }
+}
+
 .modal-enter-active,
 .modal-leave-active {
   transition: opacity var(--transicao);

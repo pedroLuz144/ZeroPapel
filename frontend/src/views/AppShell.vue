@@ -49,6 +49,7 @@ async function sair(): Promise<void> {
 .shell {
   display: flex;
   height: 100%;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -91,5 +92,21 @@ async function sair(): Promise<void> {
   flex: 1;
   overflow-y: auto;
   padding: 24px 26px;
+}
+
+@media (max-width: 720px) {
+  .shell__topo {
+    padding: 10px 16px;
+    padding-top: max(10px, env(safe-area-inset-top));
+    gap: 10px;
+  }
+
+  .shell__nome {
+    display: none;
+  }
+
+  .shell__conteudo {
+    padding: 16px 16px calc(var(--altura-nav-inferior) + 20px + env(safe-area-inset-bottom));
+  }
 }
 </style>

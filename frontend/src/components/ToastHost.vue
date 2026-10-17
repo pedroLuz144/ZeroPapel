@@ -35,6 +35,15 @@ const { fila, fechar } = useToast()
   max-width: 360px;
 }
 
+@media (max-width: 720px) {
+  .toasts {
+    left: 16px;
+    right: 16px;
+    bottom: calc(var(--altura-nav-inferior) + 12px + env(safe-area-inset-bottom));
+    max-width: none;
+  }
+}
+
 .toast {
   padding: 12px 15px;
   border-radius: var(--raio);

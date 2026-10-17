@@ -2,10 +2,10 @@
 import { auth } from '@/stores/auth'
 
 const itens = [
-  { nome: 'PDV - Balcão', para: '/app/pdv' },
-  { nome: 'Painel de Pedidos', para: '/app/pedidos' },
-  { nome: 'Dashboard Financeiro', para: '/app/financeiro', gerente: true },
-  { nome: 'Configurações', para: '/app/configuracoes' },
+  { nome: 'PDV - Balcão', curto: 'PDV', para: '/app/pdv' },
+  { nome: 'Painel de Pedidos', curto: 'Pedidos', para: '/app/pedidos' },
+  { nome: 'Dashboard Financeiro', curto: 'Financeiro', para: '/app/financeiro', gerente: true },
+  { nome: 'Configurações', curto: 'Ajustes', para: '/app/configuracoes' },
 ]
 </script>
 
@@ -25,7 +25,8 @@ const itens = [
           class="sidebar__item"
           active-class="sidebar__item--ativo"
         >
-          {{ item.nome }}
+          <span class="sidebar__rotulo">{{ item.nome }}</span>
+          <span class="sidebar__rotulo-curto">{{ item.curto }}</span>
         </RouterLink>
       </template>
     </nav>
@@ -96,5 +97,60 @@ const itens = [
   background: var(--cor-superficie-2);
   border-left-color: var(--cor-acento);
   font-weight: 600;
+}
+
+.sidebar__rotulo-curto {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .sidebar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    z-index: 100;
+    border-right: none;
+    border-top: 1px solid var(--cor-borda);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .sidebar__marca,
+  .sidebar__secao,
+  .sidebar__rotulo {
+    display: none;
+  }
+
+  .sidebar__rotulo-curto {
+    display: inline;
+  }
+
+  .sidebar__nav {
+    display: flex;
+    padding: 0;
+  }
+
+  .sidebar__item {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--altura-nav-inferior);
+    padding: 0 4px;
+    font-size: 12px;
+    border-left: none;
+    border-top: 2px solid transparent;
+  }
+
+  .sidebar__item:hover {
+    background: transparent;
+  }
+
+  .sidebar__item--ativo {
+    background: transparent;
+    border-top-color: var(--cor-acento);
+    color: var(--cor-acento);
+  }
 }
 </style>
