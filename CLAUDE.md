@@ -197,8 +197,8 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (17/10/2026):** 307 testes no Java sem o `CdpApplicationTests` (que exige
-MariaDB no ar): 305 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (17/10/2026):** 311 testes no Java sem o `CdpApplicationTests` (que exige
+MariaDB no ar): 309 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
@@ -224,12 +224,16 @@ MariaDB no ar): 305 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`)
 | `LimiteDeTentativasDeLoginServiceImplTest` (14) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas, espaços, acento e largura total na mesma chave; mapa cheio recusa login novo com 429 sem passar do limite, não expulsa nem zera o contador de login real, continua contando login já acompanhado, abre espaço quando uma janela vence e descarta os vencidos |
 | `RefreshTokenServiceImplTest` (9) | rotação, expiração, recusa de usuário inativo, revogação de um token e de todos os tokens do usuário |
 | `RevogacaoDeSessoesListenerTest` (1) | a invalidação de sessões revoga todos os refresh tokens do usuário |
+| `GlobalExceptionHandlerTest` (2) | JSON malformado e tipo errado respondem 400 com `{ "error": ... }` genérico, sem a mensagem do Jackson |
+| `SecurityConfigTest` (2) | a CSP restringe à própria origem sem `unsafe-inline`/`unsafe-eval`; HSTS de 1 ano |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
 | `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
 
 Sem teste ainda: `ItemServiceImpl`, `CategoriaServiceImpl`, `FormaDePagamentoServiceImpl`,
-`CanalDeBalcaoListener` e os controllers. O frontend tem só
+`CanalDeBalcaoListener` e os controllers. Os cabeçalhos montados pela cadeia de filtros não têm
+teste automatizado (o `SecurityConfigTest` só confere as constantes); foram conferidos com `curl`
+na aplicação rodando em 17/10/2026. O frontend tem só
 `frontend/src/utils/formato.spec.ts` (7), `frontend/src/utils/periodo.spec.ts` (8),
 `frontend/src/utils/rotaInterna.spec.ts` (10), `frontend/src/api/http.spec.ts` (15),
 `frontend/src/components/CarrinhoEditor.spec.ts` (7) e
@@ -669,6 +673,29 @@ que passa de 72 bytes. Senha antiga mais curta continua entrando; a regra vale a
 `LoginResponse` carries `cargo` so the SPA knows the role without a probe request.
 Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `/assets/**`).
 
+**Cabeçalhos de segurança** (`SecurityConfig`). CSP `default-src 'self'; img-src 'self' data:;
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`, sem
+`unsafe-inline`: o `index.html` gerado pelo Vite só tem `<script src>` e `<link>` para `/assets/`,
+as fontes Inter são servidas do próprio jar e o `style` dos templates o Vue aplica por CSSOM, que a
+CSP não bloqueia. A única exceção é `data:` em imagem, para o favicon do `index.html` e a seta do
+`select` em `styles/base.css`. Dependência de front que carregue script, estilo ou fonte de outra
+origem, ou `<style>` injetado, quebra com essa CSP: ajuste a política junto. Também
+`Referrer-Policy: same-origin`, e o Spring mantém os padrões `X-Frame-Options: DENY` e
+`X-Content-Type-Options: nosniff`.
+
+**HSTS e o proxy.** HSTS de 1 ano com `includeSubDomains`, mas o Spring Security só manda o
+cabeçalho em requisição **segura**. A aplicação recebe HTTP do Tailscale Funnel, então
+`application.properties` tem `server.forward-headers-strategy=native` (RemoteIpValve do Tomcat):
+com ele o Tomcat aceita `X-Forwarded-Proto`/`-For`/`-Host` vindos de proxy interno (loopback,
+redes privadas como a ponte do Docker e a faixa 100.64/10) e passa a tratar a requisição como
+HTTPS. O `tailscale serve`/Funnel manda `X-Forwarded-Proto: https` quando a entrada é TLS (conferido
+em `ipn/ipnlocal/serve.go`, `addProxyForwardedHeaders`), além de `X-Forwarded-Host` e
+`X-Forwarded-For`, e é um `httputil.ReverseProxy` com `Rewrite`, que descarta os `X-Forwarded-*`
+mandados pelo cliente. Consequências: pelo Funnel o HSTS sai; num acesso HTTP direto (o `curl` no
+`127.0.0.1` do notebook) não sai, e está certo. Confiar no cabeçalho é seguro porque em produção a
+porta só escuta no loopback e só o Funnel chega nela: se o 8080 voltar a ficar aberto na rede,
+qualquer aparelho dali pode forjar `X-Forwarded-Proto`.
+
 ### Error Handling
 
 `GlobalExceptionHandler` maps:
@@ -677,6 +704,8 @@ Static SPA paths are also public (GET `/`, `/index.html`, `/login`, `/app/**`, `
 - `TokenInvalidoException` → 401
 - `MuitasTentativasException` → 429, com `Retry-After`
 - `MethodArgumentNotValidException` → 400
+- `HttpMessageNotReadableException` (JSON malformado, tipo errado num campo) → 400 com mensagem
+  genérica; a mensagem do Jackson só vai para o log em DEBUG, nunca para a resposta
 
 Requisição não autenticada a rota protegida responde 401 (`security/PontoDeEntradaNaoAutenticado`); papel insuficiente responde 403 (`AuthorizationDeniedException` no `GlobalExceptionHandler`, ou `security/ManipuladorDeAcessoNegado` quando a recusa acontece na cadeia de filtros).
 
