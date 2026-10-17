@@ -10,6 +10,7 @@ import type {
   AtualizarItemRequest,
   AtualizarLojaRequest,
   AtualizarPedidoRequest,
+  AtualizarStatusPedidoRequest,
   AtualizarPlataformaRequest,
   AtualizarTaxaRequest,
   AtualizarUsuarioRequest,
@@ -20,6 +21,7 @@ import type {
   FechamentoCaixaListagem,
   FechamentoResponse,
   FormaDePagamentoResponse,
+  HistoricoPedidoResponse,
   ItemResponse,
   LoginRequest,
   LoginResponse,
@@ -27,7 +29,6 @@ import type {
   PedidoResponse,
   PlataformaResponse,
   RealizarFechamentoRequest,
-  StatusPedido,
   UsuarioResponse,
 } from '@/api/types'
 
@@ -94,9 +95,10 @@ export const pedidosApi = {
   buscar: (id: number) => http.get<PedidoResponse>(`/pedidos/${id}`),
   registrar: (body: AdicionarPedidoRequest) => http.post<PedidoResponse>('/pedidos', body),
   atualizar: (id: number, body: AtualizarPedidoRequest) => http.patch<PedidoResponse>(`/pedidos/${id}`, body),
-  atualizarStatus: (id: number, status: StatusPedido) =>
-    http.patch<PedidoResponse>(`/pedidos/${id}/status`, { status }),
+  atualizarStatus: (id: number, body: AtualizarStatusPedidoRequest) =>
+    http.patch<PedidoResponse>(`/pedidos/${id}/status`, body),
   excluir: (id: number) => http.del(`/pedidos/${id}`),
+  historico: (id: number) => http.get<HistoricoPedidoResponse[]>(`/pedidos/${id}/historico`),
 }
 
 export const fechamentoApi = {

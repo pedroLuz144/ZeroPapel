@@ -16,13 +16,19 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.response.HistoricoPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
+import com.goldenpetiscaria.zeropapel.pedido.entity.HistoricoPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.AcaoHistoricoPedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.ResultadoStatusExterno;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
+import com.goldenpetiscaria.zeropapel.pedido.repository.HistoricoPedidoRepository;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
+import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
+import com.goldenpetiscaria.zeropapel.usuario.service.UsuarioService;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
 import jakarta.validation.ValidatorFactory;
@@ -35,7 +41,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.NullAndEmptySource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.boot.test.system.CapturedOutput;
@@ -50,6 +59,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -62,6 +74,7 @@ class PedidoServiceImplTest {
     private static final Long LOJA_ID = 7L;
     private static final Long IFOOD_ID = 5L;
     private static final String ID_NO_IFOOD = "a1b2c3d4-0001";
+    private static final Long USUARIO_ID = 11L;
 
     private static ValidatorFactory fabricaDeValidador;
     private static Validator validator;
@@ -77,6 +90,12 @@ class PedidoServiceImplTest {
 
     @Mock
     private ItemService itemService;
+
+    @Mock
+    private UsuarioService usuarioService;
+
+    @Mock
+    private HistoricoPedidoRepository historicoRepository;
 
     private PedidoServiceImpl service;
 
@@ -94,7 +113,7 @@ class PedidoServiceImplTest {
     @BeforeEach
     void montarService() {
         service = new PedidoServiceImpl(pedidoRepository, canalDeVendaService,
-                formaDePagamentoService, itemService, validator);
+                formaDePagamentoService, itemService, usuarioService, historicoRepository, validator);
     }
 
     @Nested
@@ -149,7 +168,7 @@ class PedidoServiceImplTest {
             when(canalDeVendaService.buscarCanalAtivo(LOJA_ID, 9L)).thenReturn(ifood);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
-            service.atualizarPedido(1L, new AtualizarPedidoRequest(9L, null, null, null));
+            service.atualizarPedido(1L, new AtualizarPedidoRequest(9L, null, null, null), USUARIO_ID);
 
             assertThat(existente.getTaxaPlataformaPercentual()).isEqualByComparingTo("12.00");
         }
@@ -163,7 +182,7 @@ class PedidoServiceImplTest {
             when(formaDePagamentoService.buscarEntidadePorId(8L)).thenReturn(credito);
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
-            service.atualizarPedido(1L, new AtualizarPedidoRequest(null, null, 8L, null));
+            service.atualizarPedido(1L, new AtualizarPedidoRequest(null, null, 8L, null), USUARIO_ID);
 
             assertThat(existente.getTaxaPagamentoPercentual()).isEqualByComparingTo("2.99");
         }
@@ -178,7 +197,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(existente));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
-            service.atualizarPedido(1L, new AtualizarPedidoRequest(null, "Outro Nome", null, null));
+            service.atualizarPedido(1L, new AtualizarPedidoRequest(null, "Outro Nome", null, null), USUARIO_ID);
 
             assertThat(existente.getTaxaPlataformaPercentual()).isEqualByComparingTo("10.00");
             assertThat(existente.getTaxaPagamentoPercentual()).isEqualByComparingTo("1.50");
@@ -196,7 +215,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.atualizarPedido(1L,
-                    new AtualizarPedidoRequest(1L, "Outro Nome", 2L, null));
+                    new AtualizarPedidoRequest(1L, "Outro Nome", 2L, null), USUARIO_ID);
 
             verifyNoInteractions(canalDeVendaService, formaDePagamentoService);
             assertThat(existente.getTaxaPlataformaPercentual()).isEqualByComparingTo("10.00");
@@ -218,7 +237,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
             PedidoResponseDTO resposta = service.atualizarPedido(1L,
-                    new AtualizarPedidoRequest(1L, null, 2L, List.of(new ItemPedidoRequest(4L, 2))));
+                    new AtualizarPedidoRequest(1L, null, 2L, List.of(new ItemPedidoRequest(4L, 2))), USUARIO_ID);
 
             verify(canalDeVendaService, never()).buscarCanalAtivo(any(), any());
             assertThat(existente.getItens()).hasSize(1);
@@ -533,7 +552,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
 
             assertThatThrownBy(() -> service.atualizarPedido(1L,
-                    new AtualizarPedidoRequest(null, "Outro Nome", null, List.of(new ItemPedidoRequest(3L, 1)))))
+                    new AtualizarPedidoRequest(null, "Outro Nome", null, List.of(new ItemPedidoRequest(3L, 1))), USUARIO_ID))
                     .isInstanceOf(ConflitoException.class)
                     .hasMessageContaining("plataforma externa");
 
@@ -549,7 +568,7 @@ class PedidoServiceImplTest {
             Pedido externo = pedidoExterno();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
 
-            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, null, USUARIO_ID))
                     .isInstanceOf(ConflitoException.class)
                     .hasMessageContaining("plataforma externa");
 
@@ -562,7 +581,7 @@ class PedidoServiceImplTest {
             Pedido externo = pedidoExterno();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
 
-            assertThatThrownBy(() -> service.excluirPedido(1L))
+            assertThatThrownBy(() -> service.excluirPedido(1L, USUARIO_ID))
                     .isInstanceOf(ConflitoException.class)
                     .hasMessageContaining("plataforma externa");
 
@@ -576,7 +595,7 @@ class PedidoServiceImplTest {
             externo.setFechado(true);
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(externo));
 
-            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, null, USUARIO_ID))
                     .isInstanceOf(ConflitoException.class)
                     .hasMessageContaining("fechamento de caixa");
         }
@@ -812,7 +831,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
 
             assertThatThrownBy(() -> service.atualizarPedido(1L,
-                    new AtualizarPedidoRequest(null, "Outro Nome", null, null)))
+                    new AtualizarPedidoRequest(null, "Outro Nome", null, null), USUARIO_ID))
                     .isInstanceOf(ConflitoException.class)
                     .hasMessageContaining("fechamento de caixa");
 
@@ -826,7 +845,7 @@ class PedidoServiceImplTest {
             Pedido fechado = pedidoFechado();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
 
-            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO))
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, null, USUARIO_ID))
                     .isInstanceOf(ConflitoException.class);
 
             assertThat(fechado.getStatus()).isEqualTo(StatusPedido.CONCLUIDO);
@@ -839,7 +858,7 @@ class PedidoServiceImplTest {
             Pedido fechado = pedidoFechado();
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(fechado));
 
-            assertThatThrownBy(() -> service.excluirPedido(1L))
+            assertThatThrownBy(() -> service.excluirPedido(1L, USUARIO_ID))
                     .isInstanceOf(ConflitoException.class);
 
             verify(pedidoRepository, never()).delete(any());
@@ -851,7 +870,7 @@ class PedidoServiceImplTest {
                     formaDePagamento(2L, "Pix", "0.00"));
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
 
-            service.excluirPedido(1L);
+            service.excluirPedido(1L, USUARIO_ID);
 
             verify(pedidoRepository).delete(aberto);
         }
@@ -882,7 +901,7 @@ class PedidoServiceImplTest {
             when(pedidoRepository.findById(1L)).thenReturn(Optional.of(existente));
             when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
 
-            PedidoResponseDTO resposta = service.atualizarStatus(1L, StatusPedido.PRONTO);
+            PedidoResponseDTO resposta = service.atualizarStatus(1L, StatusPedido.PRONTO, null, USUARIO_ID);
 
             assertThat(existente.getStatus()).isEqualTo(StatusPedido.PRONTO);
             assertThat(resposta.status()).isEqualTo(StatusPedido.PRONTO);
@@ -894,6 +913,277 @@ class PedidoServiceImplTest {
 
             assertThatThrownBy(() -> service.buscarPedidoPorId(99L))
                     .isInstanceOf(RecursoNaoEncontradoException.class);
+        }
+    }
+
+    @Nested
+    class Historico {
+
+        @ParameterizedTest
+        @NullAndEmptySource
+        @ValueSource(strings = {"   ", "ab", "  a  "})
+        @DisplayName("cancelar pelo painel sem motivo de pelo menos 3 caracteres e recusado sem gravar nada")
+        void atualizarStatus_recusaCancelamento_quandoOMotivoFaltaOuECurto(String motivo) {
+            Pedido aberto = pedidoDeBalcao();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, motivo, USUARIO_ID))
+                    .isInstanceOf(RequisicaoInvalidaException.class)
+                    .hasMessageContaining("motivo");
+
+            assertThat(aberto.getStatus()).isEqualTo(StatusPedido.EM_ABERTO);
+            verify(pedidoRepository, never()).save(any());
+            verifyNoInteractions(historicoRepository, usuarioService);
+        }
+
+        @Test
+        void atualizarStatus_recusaCancelamento_quandoOMotivoPassaDe255Caracteres() {
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoDeBalcao()));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, "x".repeat(256), USUARIO_ID))
+                    .isInstanceOf(RequisicaoInvalidaException.class);
+
+            verifyNoInteractions(historicoRepository);
+        }
+
+        @Test
+        @DisplayName("cancelar com motivo grava o cancelamento com o usuario e o motivo sem espacos nas pontas")
+        void atualizarStatus_registraOCancelamentoComUsuarioEMotivo() {
+            Pedido aberto = pedidoDeBalcao();
+            Usuario operador = usuario("Joana", "joana");
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+            when(usuarioService.buscarEntidadePorId(USUARIO_ID)).thenReturn(operador);
+
+            PedidoResponseDTO resposta = service.atualizarStatus(1L, StatusPedido.CANCELADO,
+                    "  Cliente desistiu  ", USUARIO_ID);
+
+            HistoricoPedido registro = capturarHistorico();
+            assertThat(registro.getPedidoId()).isEqualTo(1L);
+            assertThat(registro.getAcao()).isEqualTo(AcaoHistoricoPedido.CANCELADO);
+            assertThat(registro.getUsuario()).isSameAs(operador);
+            assertThat(registro.getDetalhe()).isEqualTo("Cliente desistiu");
+            assertThat(registro.getDataHora()).isNotNull();
+            assertThat(aberto.getStatus()).isEqualTo(StatusPedido.CANCELADO);
+            assertThat(resposta.motivoCancelamento()).isEqualTo("Cliente desistiu");
+        }
+
+        @ParameterizedTest
+        @EnumSource(value = StatusPedido.class, names = "CANCELADO", mode = EnumSource.Mode.EXCLUDE)
+        @DisplayName("mudar para status que nao e cancelamento nao exige motivo nem grava historico")
+        void atualizarStatus_naoRegistra_quandoNaoECancelamento(StatusPedido status) {
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoDeBalcao()));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            PedidoResponseDTO resposta = service.atualizarStatus(1L, status, null, USUARIO_ID);
+
+            assertThat(resposta.status()).isEqualTo(status);
+            assertThat(resposta.motivoCancelamento()).isNull();
+            verifyNoInteractions(historicoRepository, usuarioService);
+        }
+
+        @Test
+        @DisplayName("editar grava quem editou e o resumo de como o pedido estava antes")
+        void atualizarPedido_registraAEdicaoComOResumoDeAntes() {
+            Pedido aberto = pedidoDeBalcao();
+            aberto.setNomeCliente("Pedro");
+            Usuario operador = usuario("Joana", "joana");
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
+            when(pedidoRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+            when(usuarioService.buscarEntidadePorId(USUARIO_ID)).thenReturn(operador);
+
+            service.atualizarPedido(1L, new AtualizarPedidoRequest(null, "Paulo", null, null), USUARIO_ID);
+
+            HistoricoPedido registro = capturarHistorico();
+            assertThat(registro.getAcao()).isEqualTo(AcaoHistoricoPedido.EDITADO);
+            assertThat(registro.getUsuario()).isSameAs(operador);
+            assertThat(registro.getDetalhe())
+                    .contains("valor 19.00")
+                    .contains("cliente Pedro")
+                    .doesNotContain("Paulo");
+        }
+
+        @Test
+        @DisplayName("excluir grava a exclusao antes de apagar o pedido")
+        void excluirPedido_registraAExclusaoAntesDeApagar() {
+            Pedido aberto = pedidoDeBalcao();
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(aberto));
+            when(usuarioService.buscarEntidadePorId(USUARIO_ID)).thenReturn(usuario("Ana", "ana"));
+
+            service.excluirPedido(1L, USUARIO_ID);
+
+            InOrder ordem = inOrder(historicoRepository, pedidoRepository);
+            ordem.verify(historicoRepository).save(any());
+            ordem.verify(pedidoRepository).delete(aberto);
+            HistoricoPedido registro = capturarHistorico();
+            assertThat(registro.getAcao()).isEqualTo(AcaoHistoricoPedido.EXCLUIDO);
+            assertThat(registro.getPedidoId()).isEqualTo(1L);
+            assertThat(registro.getDetalhe()).contains("EM_ABERTO").contains("valor 19.00");
+        }
+
+        @Test
+        void atualizarStatus_naoRegistraCancelamento_quandoOPedidoJaFoiFechado() {
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoFechado()));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, "Cliente desistiu", USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+
+            verifyNoInteractions(historicoRepository, usuarioService);
+        }
+
+        @Test
+        void atualizarPedidoEExcluirPedido_naoRegistram_quandoOPedidoJaFoiFechado() {
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoFechado()));
+
+            assertThatThrownBy(() -> service.atualizarPedido(1L,
+                    new AtualizarPedidoRequest(null, "Outro", null, null), USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+            assertThatThrownBy(() -> service.excluirPedido(1L, USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+
+            verifyNoInteractions(historicoRepository, usuarioService);
+        }
+
+        @Test
+        void painel_naoRegistra_quandoOPedidoEExterno() {
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(pedidoExterno()));
+
+            assertThatThrownBy(() -> service.atualizarStatus(1L, StatusPedido.CANCELADO, "Cliente desistiu", USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+            assertThatThrownBy(() -> service.atualizarPedido(1L,
+                    new AtualizarPedidoRequest(null, "Outro", null, null), USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+            assertThatThrownBy(() -> service.excluirPedido(1L, USUARIO_ID))
+                    .isInstanceOf(ConflitoException.class);
+
+            verifyNoInteractions(historicoRepository, usuarioService);
+        }
+
+        @Test
+        @DisplayName("cancelamento vindo da plataforma grava o historico sem usuario")
+        void aplicarStatusExterno_registraCancelamentoSemUsuario() {
+            Pedido externo = pedidoExternoCom(StatusPedido.EM_PREPARO);
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(externo));
+
+            ResultadoStatusExterno resultado = service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CANCELADO);
+
+            assertThat(resultado).isEqualTo(ResultadoStatusExterno.APLICADO);
+            HistoricoPedido registro = capturarHistorico();
+            assertThat(registro.getAcao()).isEqualTo(AcaoHistoricoPedido.CANCELADO);
+            assertThat(registro.getUsuario()).isNull();
+            assertThat(registro.getDetalhe()).contains("plataforma").contains("iFood");
+            verifyNoInteractions(usuarioService);
+        }
+
+        @Test
+        void aplicarStatusExterno_naoRegistra_quandoOStatusNaoECancelamento() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(pedidoExternoCom(StatusPedido.EM_ABERTO)));
+
+            service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.ACEITO);
+
+            verifyNoInteractions(historicoRepository);
+        }
+
+        @Test
+        void aplicarStatusExterno_naoRegistra_quandoOCancelamentoEIgnorado() {
+            when(pedidoRepository.findByPlataformaIdAndPlataformaPedidoId(IFOOD_ID, ID_NO_IFOOD))
+                    .thenReturn(Optional.of(pedidoExternoCom(StatusPedido.CONCLUIDO)));
+
+            service.aplicarStatusExterno(IFOOD_ID, ID_NO_IFOOD, StatusPedido.CANCELADO);
+
+            verifyNoInteractions(historicoRepository);
+        }
+
+        @Test
+        @DisplayName("o historico de um pedido ja excluido continua legivel, sem consultar o pedido")
+        void listarHistorico_devolveORegistro_quandoOPedidoJaFoiExcluido() {
+            HistoricoPedido cancelamento = historico(10L, AcaoHistoricoPedido.CANCELADO, null,
+                    "Cancelado pela plataforma iFood", LocalDateTime.of(2026, 10, 6, 21, 0));
+            HistoricoPedido exclusao = historico(11L, AcaoHistoricoPedido.EXCLUIDO, usuario("Ana", "ana"),
+                    "Excluído com status CANCELADO", LocalDateTime.of(2026, 10, 6, 22, 0));
+            when(historicoRepository.findByPedidoIdOrderByDataHoraAscIdAsc(1L)).thenReturn(List.of(cancelamento, exclusao));
+
+            List<HistoricoPedidoResponseDTO> historico = service.listarHistorico(1L);
+
+            assertThat(historico).extracting(HistoricoPedidoResponseDTO::acao)
+                    .containsExactly(AcaoHistoricoPedido.CANCELADO, AcaoHistoricoPedido.EXCLUIDO);
+            assertThat(historico.get(0).usuarioNome()).isNull();
+            assertThat(historico.get(0).usuarioLogin()).isNull();
+            assertThat(historico.get(1).usuarioNome()).isEqualTo("Ana");
+            assertThat(historico.get(1).usuarioLogin()).isEqualTo("ana");
+            assertThat(historico.get(1).detalhe()).isEqualTo("Excluído com status CANCELADO");
+            assertThat(historico.get(1).dataHora()).isEqualTo(LocalDateTime.of(2026, 10, 6, 22, 0));
+            verifyNoInteractions(pedidoRepository);
+        }
+
+        @Test
+        void listarHistorico_devolveListaVazia_quandoNuncaHouveRegistro() {
+            when(historicoRepository.findByPedidoIdOrderByDataHoraAscIdAsc(99L)).thenReturn(List.of());
+
+            assertThat(service.listarHistorico(99L)).isEmpty();
+        }
+
+        @Test
+        @DisplayName("a listagem do painel traz o motivo do cancelamento mais recente, com uma consulta so")
+        void listarPedidos_trazOMotivoDoCancelamentoMaisRecente() {
+            Pedido cancelado = pedidoDeBalcao();
+            cancelado.setStatus(StatusPedido.CANCELADO);
+            Pedido aberto = pedidoDeBalcao();
+            aberto.setId(2L);
+            when(pedidoRepository.findDoPainelComItens(any(), any())).thenReturn(List.of(cancelado, aberto));
+            when(historicoRepository.findByPedidoIdInAndAcao(anyCollection(), eq(AcaoHistoricoPedido.CANCELADO)))
+                    .thenReturn(List.of(
+                            historico(20L, AcaoHistoricoPedido.CANCELADO, null, "Motivo novo", LocalDateTime.of(2026, 10, 6, 22, 0)),
+                            historico(19L, AcaoHistoricoPedido.CANCELADO, null, "Motivo antigo", LocalDateTime.of(2026, 10, 6, 21, 0))));
+
+            List<PedidoResponseDTO> pedidos = service.listarPedidos(null, null);
+
+            assertThat(pedidos).extracting(PedidoResponseDTO::motivoCancelamento)
+                    .containsExactly("Motivo novo", null);
+            verify(historicoRepository).findByPedidoIdInAndAcao(List.of(1L), AcaoHistoricoPedido.CANCELADO);
+        }
+
+        @Test
+        void buscarPedidoPorId_trazOMotivo_quandoOPedidoEstaCancelado() {
+            Pedido cancelado = pedidoDeBalcao();
+            cancelado.setStatus(StatusPedido.CANCELADO);
+            when(pedidoRepository.findById(1L)).thenReturn(Optional.of(cancelado));
+            when(historicoRepository.findFirstByPedidoIdAndAcaoOrderByDataHoraDescIdDesc(1L, AcaoHistoricoPedido.CANCELADO))
+                    .thenReturn(Optional.of(historico(5L, AcaoHistoricoPedido.CANCELADO, null, "Cliente desistiu",
+                            LocalDateTime.of(2026, 10, 6, 21, 0))));
+
+            assertThat(service.buscarPedidoPorId(1L).motivoCancelamento()).isEqualTo("Cliente desistiu");
+        }
+
+        private Pedido pedidoDeBalcao() {
+            return pedidoExistente(canal(1L, "Balcao", "0.00"), formaDePagamento(2L, "Pix", "0.00"));
+        }
+
+        private HistoricoPedido capturarHistorico() {
+            ArgumentCaptor<HistoricoPedido> captor = ArgumentCaptor.forClass(HistoricoPedido.class);
+            verify(historicoRepository).save(captor.capture());
+            return captor.getValue();
+        }
+
+        private HistoricoPedido historico(Long id, AcaoHistoricoPedido acao, Usuario usuario,
+                                          String detalhe, LocalDateTime dataHora) {
+            HistoricoPedido registro = new HistoricoPedido();
+            registro.setId(id);
+            registro.setPedidoId(1L);
+            registro.setAcao(acao);
+            registro.setUsuario(usuario);
+            registro.setDetalhe(detalhe);
+            registro.setDataHora(dataHora);
+            return registro;
+        }
+
+        private Usuario usuario(String nome, String login) {
+            Usuario usuario = new Usuario();
+            usuario.setNome(nome);
+            usuario.setUsuario(login);
+            return usuario;
         }
     }
 

@@ -161,4 +161,10 @@ public class UsuarioServiceImpl implements UsuarioService {
                 usuario.isAtivo()
         );
     }
+
+    @Override
+    public Usuario buscarEntidadePorId(Long id) {
+        return usuarioRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
+    }
 }

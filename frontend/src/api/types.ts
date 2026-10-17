@@ -202,7 +202,24 @@ export interface PedidoResponse {
   status: StatusPedido
   valor: number
   fechado: boolean
+  motivoCancelamento: string | null
   itens: ItemPedidoResponse[]
+}
+
+export interface AtualizarStatusPedidoRequest {
+  status: StatusPedido
+  motivo?: string
+}
+
+export type AcaoHistoricoPedido = 'CANCELADO' | 'EDITADO' | 'EXCLUIDO'
+
+export interface HistoricoPedidoResponse {
+  id: number
+  acao: AcaoHistoricoPedido
+  dataHora: string
+  usuarioNome: string | null
+  usuarioLogin: string | null
+  detalhe: string
 }
 
 export interface RealizarFechamentoRequest {

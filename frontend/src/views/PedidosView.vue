@@ -6,7 +6,9 @@ import BaseModal from '@/components/BaseModal.vue'
 import CarrinhoEditor from '@/components/CarrinhoEditor.vue'
 import { canaisDeVendaApi, formasPagamentoApi, itensApi, pedidosApi, plataformasApi } from '@/api'
 import type {
+  AcaoHistoricoPedido,
   CanalDeVendaResponse,
+  HistoricoPedidoResponse,
   ItemResponse,
   PedidoResponse,
   PlataformaResponse,
@@ -14,7 +16,7 @@ import type {
   TaxaResponse,
 } from '@/api/types'
 import type { LinhaCarrinho } from '@/types'
-import { dataLocalISO, horaMin, moeda } from '@/utils/formato'
+import { dataHora, dataLocalISO, horaMin, moeda } from '@/utils/formato'
 import { auth } from '@/stores/auth'
 import { useToast } from '@/composables/useToast'
 import { useConfirm } from '@/composables/useConfirm'
@@ -40,6 +42,15 @@ const STATUS_LABEL: Record<StatusPedido, string> = {
   CONCLUIDO: 'Concluído',
   CANCELADO: 'Cancelado',
 }
+
+const ACAO_LABEL: Record<AcaoHistoricoPedido, string> = {
+  CANCELADO: 'Cancelado',
+  EDITADO: 'Editado',
+  EXCLUIDO: 'Excluído',
+}
+
+const MINIMO_DO_MOTIVO = 3
+const MAXIMO_DO_MOTIVO = 255
 
 function ehStatusPedido(valor: string): valor is StatusPedido {
   return STATUS_TODOS.some((s) => s === valor)
@@ -99,6 +110,16 @@ const plataformasDaEdicao = computed<PlataformaResponse[]>(() => {
       ),
   )
 })
+
+const cancelando = ref<PedidoResponse | null>(null)
+const motivo = ref('')
+const erroCancelamento = ref('')
+const enviandoCancelamento = ref(false)
+
+const historicoDe = ref<PedidoResponse | null>(null)
+const historico = ref<HistoricoPedidoResponse[]>([])
+const carregandoHistorico = ref(false)
+const erroHistorico = ref('')
 
 const formFormaId = ref<number | null>(null)
 const formNomeCliente = ref('')
@@ -170,7 +191,13 @@ async function carregar(): Promise<void> {
 }
 
 function telaOcupada(): boolean {
-  return detalhe.value !== null || editando.value !== null || acoesEmAndamento > 0
+  return (
+    detalhe.value !== null ||
+    editando.value !== null ||
+    cancelando.value !== null ||
+    historicoDe.value !== null ||
+    acoesEmAndamento > 0
+  )
 }
 
 function recarregarSozinho(): void {
@@ -216,18 +243,74 @@ onUnmounted(() => {
   if (timerDeRecarga) clearInterval(timerDeRecarga)
 })
 
+function substituirPedido(atualizado: PedidoResponse): void {
+  const i = pedidos.value.findIndex((x) => x.id === atualizado.id)
+  if (i >= 0) pedidos.value[i] = atualizado
+  if (detalhe.value?.id === atualizado.id) detalhe.value = atualizado
+}
+
 async function mudarStatus(p: PedidoResponse, novo: StatusPedido): Promise<void> {
   await comoAcaoDoUsuario(async () => {
     try {
-      const atualizado = await pedidosApi.atualizarStatus(p.id, novo)
-      const i = pedidos.value.findIndex((x) => x.id === p.id)
-      if (i >= 0) pedidos.value[i] = atualizado
-      if (detalhe.value?.id === p.id) detalhe.value = atualizado
+      substituirPedido(await pedidosApi.atualizarStatus(p.id, { status: novo }))
       toast.sucesso(`Pedido #${p.id} → ${STATUS_LABEL[novo]}`)
     } catch (e) {
       toast.erro(e instanceof Error ? e.message : 'Erro ao mudar o status.')
     }
   })
+}
+
+function abrirCancelamento(p: PedidoResponse): void {
+  if (!podeOperar(p)) return
+  interacoes += 1
+  cancelando.value = p
+  motivo.value = ''
+  erroCancelamento.value = ''
+}
+
+async function confirmarCancelamento(): Promise<void> {
+  const p = cancelando.value
+  if (!p) return
+  const limpo = motivo.value.trim()
+  if (limpo.length < MINIMO_DO_MOTIVO || limpo.length > MAXIMO_DO_MOTIVO) {
+    erroCancelamento.value = `Informe o motivo, de ${MINIMO_DO_MOTIVO} a ${MAXIMO_DO_MOTIVO} caracteres.`
+    return
+  }
+  enviandoCancelamento.value = true
+  erroCancelamento.value = ''
+  await comoAcaoDoUsuario(async () => {
+    try {
+      substituirPedido(await pedidosApi.atualizarStatus(p.id, { status: 'CANCELADO', motivo: limpo }))
+      toast.sucesso(`Pedido #${p.id} cancelado.`)
+      cancelando.value = null
+    } catch (e) {
+      erroCancelamento.value = e instanceof Error ? e.message : 'Erro ao cancelar o pedido.'
+    } finally {
+      enviandoCancelamento.value = false
+    }
+  })
+}
+
+async function abrirHistorico(p: PedidoResponse): Promise<void> {
+  interacoes += 1
+  detalhe.value = null
+  historicoDe.value = p
+  historico.value = []
+  erroHistorico.value = ''
+  carregandoHistorico.value = true
+  try {
+    const lista = await pedidosApi.historico(p.id)
+    if (historicoDe.value?.id === p.id) historico.value = lista
+  } catch (e) {
+    erroHistorico.value = e instanceof Error ? e.message : 'Erro ao carregar o histórico.'
+  } finally {
+    carregandoHistorico.value = false
+  }
+}
+
+function autorDoRegistro(r: HistoricoPedidoResponse): string {
+  if (r.usuarioNome === null) return 'Plataforma'
+  return r.usuarioLogin ? `${r.usuarioNome} (${r.usuarioLogin})` : r.usuarioNome
 }
 
 function ehExterno(p: PedidoResponse): boolean {
@@ -250,16 +333,11 @@ async function aoEscolherStatus(p: PedidoResponse, evento: Event): Promise<void>
   const novo = alvo.value
   alvo.value = p.status
   if (!podeOperar(p) || !ehStatusPedido(novo) || novo === p.status) return
-  await comoAcaoDoUsuario(async () => {
-    if (novo === 'CANCELADO') {
-      const ok = await confirmar(`Cancelar o pedido #${p.id}?`, {
-        titulo: 'Cancelar pedido',
-        rotuloConfirmar: 'Cancelar pedido',
-      })
-      if (!ok) return
-    }
-    await mudarStatus(p, novo)
-  })
+  if (novo === 'CANCELADO') {
+    abrirCancelamento(p)
+    return
+  }
+  await mudarStatus(p, novo)
 }
 
 function abrirDetalhe(p: PedidoResponse): void {
@@ -271,6 +349,12 @@ function editarDoDetalhe(): void {
   const p = detalhe.value
   detalhe.value = null
   if (p) abrirEdicao(p)
+}
+
+function cancelarDoDetalhe(): void {
+  const p = detalhe.value
+  detalhe.value = null
+  if (p) abrirCancelamento(p)
 }
 
 async function excluirDoDetalhe(): Promise<void> {
@@ -452,6 +536,9 @@ async function excluir(p: PedidoResponse): Promise<void> {
                 </span>
               </div>
               <div class="pedido-card__itens">{{ resumoItens(p) }}</div>
+              <div v-if="p.status === 'CANCELADO' && p.motivoCancelamento" class="pedido-card__motivo">
+                Motivo: {{ p.motivoCancelamento }}
+              </div>
               <div class="pedido-card__rodape">
                 <span class="pedido-card__cliente">{{ p.nomeCliente || '—' }}</span>
                 <span class="pedido-card__valor">{{ moeda(p.valor) }}</span>
@@ -512,6 +599,9 @@ async function excluir(p: PedidoResponse): Promise<void> {
         </template>
         · Cliente: {{ detalhe.nomeCliente || '—' }}
       </p>
+      <p v-if="detalhe.status === 'CANCELADO' && detalhe.motivoCancelamento" class="detalhe__meta">
+        Motivo do cancelamento: {{ detalhe.motivoCancelamento }}
+      </p>
 
       <div class="tabela-scroll">
         <table class="tabela">
@@ -546,8 +636,18 @@ async function excluir(p: PedidoResponse): Promise<void> {
       >
         Avançar → {{ detalhe ? STATUS_LABEL[proximo(detalhe.status, ehEntrega(detalhe))!] : '' }}
       </BaseButton>
+      <BaseButton v-if="auth.isGerente && detalhe" variante="fantasma" @click="abrirHistorico(detalhe)">
+        Histórico
+      </BaseButton>
       <BaseButton v-if="detalhe && podeEditar(detalhe)" variante="fantasma" @click="editarDoDetalhe">
         Editar
+      </BaseButton>
+      <BaseButton
+        v-if="detalhe && podeOperar(detalhe) && detalhe.status !== 'CANCELADO'"
+        variante="perigo"
+        @click="cancelarDoDetalhe"
+      >
+        Cancelar pedido
       </BaseButton>
       <BaseButton
         v-if="auth.isGerente && detalhe && podeOperar(detalhe)"
@@ -556,6 +656,52 @@ async function excluir(p: PedidoResponse): Promise<void> {
       >
         Excluir
       </BaseButton>
+    </template>
+  </BaseModal>
+
+  <BaseModal
+    :aberto="!!cancelando"
+    :titulo="cancelando ? `Cancelar pedido #${cancelando.id}` : ''"
+    @fechar="cancelando = null"
+  >
+    <div v-if="erroCancelamento" class="alerta-erro">{{ erroCancelamento }}</div>
+    <BaseField
+      rotulo="Motivo do cancelamento"
+      obrigatorio
+      :dica="`De ${MINIMO_DO_MOTIVO} a ${MAXIMO_DO_MOTIVO} caracteres`"
+    >
+      <textarea v-model="motivo" rows="3" :maxlength="MAXIMO_DO_MOTIVO"></textarea>
+    </BaseField>
+    <template #acoes>
+      <BaseButton variante="fantasma" @click="cancelando = null">Voltar</BaseButton>
+      <BaseButton variante="perigo" :carregando="enviandoCancelamento" @click="confirmarCancelamento">
+        {{ enviandoCancelamento ? 'Cancelando…' : 'Cancelar pedido' }}
+      </BaseButton>
+    </template>
+  </BaseModal>
+
+  <BaseModal
+    :aberto="!!historicoDe"
+    :titulo="historicoDe ? `Histórico do pedido #${historicoDe.id}` : ''"
+    @fechar="historicoDe = null"
+  >
+    <div v-if="erroHistorico" class="alerta-erro">{{ erroHistorico }}</div>
+    <p v-if="carregandoHistorico" class="historico__vazio">Carregando…</p>
+    <p v-else-if="!erroHistorico && historico.length === 0" class="historico__vazio">
+      Nenhum cancelamento, edição ou exclusão registrado.
+    </p>
+    <ol v-else class="historico">
+      <li v-for="r in historico" :key="r.id" class="historico__item">
+        <div class="historico__linha">
+          <span class="badge">{{ ACAO_LABEL[r.acao] }}</span>
+          <span class="historico__quando">{{ dataHora(r.dataHora) }}</span>
+        </div>
+        <div class="historico__autor">{{ autorDoRegistro(r) }}</div>
+        <div class="historico__detalhe">{{ r.detalhe }}</div>
+      </li>
+    </ol>
+    <template #acoes>
+      <BaseButton variante="fantasma" @click="historicoDe = null">Fechar</BaseButton>
     </template>
   </BaseModal>
 
@@ -852,6 +998,60 @@ async function excluir(p: PedidoResponse): Promise<void> {
 
 .editor-itens {
   margin-top: 18px;
+}
+
+.pedido-card__motivo {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--cor-erro);
+  overflow-wrap: anywhere;
+}
+
+.historico {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.historico__item {
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 10px 12px;
+}
+
+.historico__linha {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.historico__quando {
+  font-size: 12px;
+  color: var(--cor-texto-fraco);
+  font-variant-numeric: tabular-nums;
+}
+
+.historico__autor {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.historico__detalhe {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--cor-texto-suave);
+  overflow-wrap: anywhere;
+}
+
+.historico__vazio {
+  color: var(--cor-texto-fraco);
+  font-size: 13px;
 }
 
 .atalhos {

@@ -10,12 +10,16 @@ import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoExternoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.ItemPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.RegistrarPedidoExternoRequest;
+import com.goldenpetiscaria.zeropapel.pedido.dto.response.HistoricoPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.ItemPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
+import com.goldenpetiscaria.zeropapel.pedido.entity.HistoricoPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.ItemPedido;
 import com.goldenpetiscaria.zeropapel.pedido.entity.Pedido;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.AcaoHistoricoPedido;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.ResultadoStatusExterno;
 import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
+import com.goldenpetiscaria.zeropapel.pedido.repository.HistoricoPedidoRepository;
 import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
 import com.goldenpetiscaria.zeropapel.common.consulta.Periodo;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
@@ -23,6 +27,8 @@ import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoExcep
 import com.goldenpetiscaria.zeropapel.common.exception.RequisicaoInvalidaException;
 import com.goldenpetiscaria.zeropapel.formadepagamento.service.FormaDePagamentoService;
 import com.goldenpetiscaria.zeropapel.item.service.ItemService;
+import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
+import com.goldenpetiscaria.zeropapel.usuario.service.UsuarioService;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
@@ -30,9 +36,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -41,22 +51,32 @@ import java.util.Set;
 public class PedidoServiceImpl implements PedidoService {
 
     private static final int LIMITE_DE_DIAS_DO_PAINEL = 31;
+    private static final int MINIMO_DO_MOTIVO = 3;
+    private static final int MAXIMO_DO_MOTIVO = 255;
+    private static final Comparator<HistoricoPedido> MAIS_RECENTE_POR_ULTIMO =
+            Comparator.comparing(HistoricoPedido::getDataHora).thenComparing(HistoricoPedido::getId);
 
     private final PedidoRepository pedidoRepository;
     private final CanalDeVendaService canalDeVendaService;
     private final FormaDePagamentoService formaDePagamentoService;
     private final ItemService itemService;
+    private final UsuarioService usuarioService;
+    private final HistoricoPedidoRepository historicoRepository;
     private final Validator validator;
 
     public PedidoServiceImpl(PedidoRepository pedidoRepository,
                              CanalDeVendaService canalDeVendaService,
                              FormaDePagamentoService formaDePagamentoService,
                              ItemService itemService,
+                             UsuarioService usuarioService,
+                             HistoricoPedidoRepository historicoRepository,
                              Validator validator) {
         this.pedidoRepository = pedidoRepository;
         this.canalDeVendaService = canalDeVendaService;
         this.formaDePagamentoService = formaDePagamentoService;
         this.itemService = itemService;
+        this.usuarioService = usuarioService;
+        this.historicoRepository = historicoRepository;
         this.validator = validator;
     }
 
@@ -94,9 +114,10 @@ public class PedidoServiceImpl implements PedidoService {
     public List<PedidoResponseDTO> listarPedidos(LocalDateTime de, LocalDateTime ate) {
         Periodo periodo = Periodo.doDiaCorrenteSeAusente(de, ate, LIMITE_DE_DIAS_DO_PAINEL);
         List<Pedido> pedidos = pedidoRepository.findDoPainelComItens(periodo.de(), periodo.ate());
+        Map<Long, String> motivos = motivosDeCancelamento(pedidos);
         List<PedidoResponseDTO> resultado = new ArrayList<>();
         for (Pedido pedido : pedidos) {
-            resultado.add(toDTO(pedido));
+            resultado.add(toDTO(pedido, motivos.get(pedido.getId())));
         }
         return resultado;
     }
@@ -110,9 +131,10 @@ public class PedidoServiceImpl implements PedidoService {
 
     @Override
     @Transactional
-    public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request) {
+    public PedidoResponseDTO atualizarPedido(Long id, AtualizarPedidoRequest request, Long usuarioId) {
         Pedido pedido = buscarAlteravel(id);
         recusarPedidoExterno(pedido, "Pedido vindo de plataforma externa não pode ser editado");
+        String antes = "Antes da edição: " + resumir(pedido);
 
         if (request.plataformaId() != null
                 && !request.plataformaId().equals(pedido.getPlataforma().getId())) {
@@ -140,26 +162,46 @@ public class PedidoServiceImpl implements PedidoService {
             pedido.setValor(calcularValor(novosItens));
         }
 
-        return toDTO(pedidoRepository.save(pedido));
+        Pedido salvo = pedidoRepository.save(pedido);
+        registrarHistorico(id, AcaoHistoricoPedido.EDITADO, usuarioId, antes);
+        return toDTO(salvo);
     }
 
     @Override
     @Transactional
-    public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status) {
+    public PedidoResponseDTO atualizarStatus(Long id, StatusPedido status, String motivo, Long usuarioId) {
         Pedido pedido = buscarAlteravel(id);
         recusarPedidoExterno(pedido,
                 "Pedido vindo de plataforma externa tem o status definido pela plataforma; não pode ser alterado pelo painel");
+        if (status != StatusPedido.CANCELADO) {
+            pedido.setStatus(status);
+            return toDTO(pedidoRepository.save(pedido));
+        }
+
+        String motivoDoCancelamento = exigirMotivo(motivo);
         pedido.setStatus(status);
-        return toDTO(pedidoRepository.save(pedido));
+        Pedido salvo = pedidoRepository.save(pedido);
+        registrarHistorico(id, AcaoHistoricoPedido.CANCELADO, usuarioId, motivoDoCancelamento);
+        return toDTO(salvo, motivoDoCancelamento);
     }
 
     @Override
     @Transactional
-    public void excluirPedido(Long id) {
+    public void excluirPedido(Long id, Long usuarioId) {
         Pedido pedido = buscarAlteravel(id);
         recusarPedidoExterno(pedido,
                 "Pedido vindo de plataforma externa não pode ser excluído; o cancelamento vem da plataforma");
+        String resumo = "Excluído com status " + pedido.getStatus() + "; " + resumir(pedido);
+        registrarHistorico(id, AcaoHistoricoPedido.EXCLUIDO, usuarioId, resumo);
         pedidoRepository.delete(pedido);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HistoricoPedidoResponseDTO> listarHistorico(Long pedidoId) {
+        return historicoRepository.findByPedidoIdOrderByDataHoraAscIdAsc(pedidoId).stream()
+                .map(this::toHistoricoDTO)
+                .toList();
     }
 
     @Override
@@ -188,7 +230,87 @@ public class PedidoServiceImpl implements PedidoService {
 
         pedido.setStatus(status);
         pedidoRepository.save(pedido);
+        if (status == StatusPedido.CANCELADO) {
+            registrarHistorico(pedido.getId(), AcaoHistoricoPedido.CANCELADO, null,
+                    "Cancelado pela plataforma " + pedido.getPlataforma().getNome());
+        }
         return ResultadoStatusExterno.APLICADO;
+    }
+
+    private String exigirMotivo(String motivo) {
+        String limpo = motivo == null ? "" : motivo.strip();
+        if (limpo.length() < MINIMO_DO_MOTIVO || limpo.length() > MAXIMO_DO_MOTIVO) {
+            throw new RequisicaoInvalidaException("Informe o motivo do cancelamento, de "
+                    + MINIMO_DO_MOTIVO + " a " + MAXIMO_DO_MOTIVO + " caracteres");
+        }
+        return limpo;
+    }
+
+    private void registrarHistorico(Long pedidoId, AcaoHistoricoPedido acao, Long usuarioId, String detalhe) {
+        Usuario usuario = usuarioId != null ? usuarioService.buscarEntidadePorId(usuarioId) : null;
+        HistoricoPedido registro = new HistoricoPedido();
+        registro.setPedidoId(pedidoId);
+        registro.setAcao(acao);
+        registro.setUsuario(usuario);
+        registro.setDataHora(LocalDateTime.now());
+        registro.setDetalhe(limitar(detalhe));
+        historicoRepository.save(registro);
+    }
+
+    private String resumir(Pedido pedido) {
+        String cliente = pedido.getNomeCliente() == null || pedido.getNomeCliente().isBlank()
+                ? "sem nome" : pedido.getNomeCliente().strip();
+        BigDecimal valor = pedido.getValor() == null ? BigDecimal.ZERO : pedido.getValor();
+        return "valor " + valor.setScale(2, RoundingMode.HALF_UP).toPlainString()
+                + "; cliente " + cliente
+                + "; plataforma " + pedido.getPlataforma().getNome()
+                + "; pagamento " + pedido.getFormaDePagamento().getNome();
+    }
+
+    private String limitar(String detalhe) {
+        return detalhe.length() > HistoricoPedido.TAMANHO_DO_DETALHE
+                ? detalhe.substring(0, HistoricoPedido.TAMANHO_DO_DETALHE)
+                : detalhe;
+    }
+
+    private Map<Long, String> motivosDeCancelamento(List<Pedido> pedidos) {
+        List<Long> cancelados = pedidos.stream()
+                .filter(pedido -> pedido.getStatus() == StatusPedido.CANCELADO)
+                .map(Pedido::getId)
+                .toList();
+        Map<Long, String> motivos = new HashMap<>();
+        if (cancelados.isEmpty()) {
+            return motivos;
+        }
+        Map<Long, HistoricoPedido> maisRecente = new HashMap<>();
+        for (HistoricoPedido registro : historicoRepository.findByPedidoIdInAndAcao(cancelados, AcaoHistoricoPedido.CANCELADO)) {
+            maisRecente.merge(registro.getPedidoId(), registro,
+                    (atual, outro) -> MAIS_RECENTE_POR_ULTIMO.compare(atual, outro) >= 0 ? atual : outro);
+        }
+        maisRecente.forEach((pedidoId, registro) -> motivos.put(pedidoId, registro.getDetalhe()));
+        return motivos;
+    }
+
+    private String motivoDeCancelamento(Pedido pedido) {
+        if (pedido.getStatus() != StatusPedido.CANCELADO || pedido.getId() == null) {
+            return null;
+        }
+        return historicoRepository
+                .findFirstByPedidoIdAndAcaoOrderByDataHoraDescIdDesc(pedido.getId(), AcaoHistoricoPedido.CANCELADO)
+                .map(HistoricoPedido::getDetalhe)
+                .orElse(null);
+    }
+
+    private HistoricoPedidoResponseDTO toHistoricoDTO(HistoricoPedido registro) {
+        Usuario usuario = registro.getUsuario();
+        return new HistoricoPedidoResponseDTO(
+                registro.getId(),
+                registro.getAcao(),
+                registro.getDataHora(),
+                usuario != null ? usuario.getNome() : null,
+                usuario != null ? usuario.getUsuario() : null,
+                registro.getDetalhe()
+        );
     }
 
     private void recusarPedidoExterno(Pedido pedido, String mensagem) {
@@ -305,6 +427,10 @@ public class PedidoServiceImpl implements PedidoService {
     }
 
     private PedidoResponseDTO toDTO(Pedido pedido) {
+        return toDTO(pedido, motivoDeCancelamento(pedido));
+    }
+
+    private PedidoResponseDTO toDTO(Pedido pedido, String motivoCancelamento) {
         List<ItemPedidoResponseDTO> itensDTO = new ArrayList<>();
         for (ItemPedido i : pedido.getItens()) {
             BigDecimal subtotal = i.getPrecoUnitario().multiply(BigDecimal.valueOf(i.getQuantidade()));
@@ -331,6 +457,7 @@ public class PedidoServiceImpl implements PedidoService {
                 pedido.getStatus(),
                 pedido.getValor(),
                 pedido.isFechado(),
+                pedido.getStatus() == StatusPedido.CANCELADO ? motivoCancelamento : null,
                 itensDTO
         );
     }

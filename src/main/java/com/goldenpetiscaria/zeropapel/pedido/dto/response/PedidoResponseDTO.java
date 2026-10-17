@@ -20,5 +20,6 @@ public record PedidoResponseDTO(
         StatusPedido status,
         BigDecimal valor,
         boolean fechado,
+        String motivoCancelamento,
         List<ItemPedidoResponseDTO> itens
 ) {}

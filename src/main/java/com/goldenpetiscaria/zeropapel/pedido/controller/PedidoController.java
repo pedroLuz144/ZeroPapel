@@ -1,14 +1,17 @@
 package com.goldenpetiscaria.zeropapel.pedido.controller;
 
+import com.goldenpetiscaria.zeropapel.pedido.dto.response.HistoricoPedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.dto.response.PedidoResponseDTO;
 import com.goldenpetiscaria.zeropapel.pedido.service.PedidoService;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AdicionarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarPedidoRequest;
 import com.goldenpetiscaria.zeropapel.pedido.dto.request.AtualizarStatusPedidoRequest;
+import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -44,20 +47,28 @@ public class PedidoController {
         return service.buscarPedidoPorId(id);
     }
 
+    @GetMapping("/{id}/historico")
+    @PreAuthorize("hasRole('GERENTE')")
+    public List<HistoricoPedidoResponseDTO> listarHistorico(@PathVariable Long id) {
+        return service.listarHistorico(id);
+    }
+
     @PatchMapping("/{id}")
-    public PedidoResponseDTO atualizarPedido(@PathVariable Long id, @RequestBody @Valid AtualizarPedidoRequest request) {
-        return service.atualizarPedido(id, request);
+    public PedidoResponseDTO atualizarPedido(@PathVariable Long id, @RequestBody @Valid AtualizarPedidoRequest request,
+                                             @AuthenticationPrincipal Usuario usuario) {
+        return service.atualizarPedido(id, request, usuario.getId());
     }
 
     @PatchMapping("/{id}/status")
-    public PedidoResponseDTO atualizarStatus(@PathVariable Long id, @RequestBody @Valid AtualizarStatusPedidoRequest request) {
-        return service.atualizarStatus(id, request.status());
+    public PedidoResponseDTO atualizarStatus(@PathVariable Long id, @RequestBody @Valid AtualizarStatusPedidoRequest request,
+                                             @AuthenticationPrincipal Usuario usuario) {
+        return service.atualizarStatus(id, request.status(), request.motivo(), usuario.getId());
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('GERENTE')")
-    public void excluirPedido(@PathVariable Long id) {
-        service.excluirPedido(id);
+    public void excluirPedido(@PathVariable Long id, @AuthenticationPrincipal Usuario usuario) {
+        service.excluirPedido(id, usuario.getId());
     }
 }

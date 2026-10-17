@@ -17,6 +17,7 @@ function pedido(id: number, status: StatusPedido, horarioPedido: string, fechado
     status,
     valor: 10,
     fechado,
+    motivoCancelamento: null,
     itens: [],
   }
 }

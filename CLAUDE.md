@@ -11,7 +11,8 @@ Sistema de gestão de caixa para uma petiscaria. O objetivo central é automatiz
 Implementado: Usuario, Item, Categoria, Pedido, ItemPedido, Plataforma, FormaDePagamento,
 Loja, CanalDeVenda (domínio multi-loja, etapa 1 de `docs/integracao-ifood.md`),
 FechamentoCaixa (`POST /fechamento` persiste) e o consolidado em tempo real (`GET /dashboard`),
-além da SPA em `frontend/`. O domínio já recebe pedido de plataforma externa
+além da SPA em `frontend/` e do histórico de cancelamento, edição e exclusão de pedido
+(`HistoricoPedido`, `GET /pedidos/{id}/historico`). O domínio já recebe pedido de plataforma externa
 (`Pedido.plataformaPedidoId`, `ItemPedido` com item opcional e nome gravado,
 `PedidoService.registrarPedidoExterno` e `aplicarStatusExterno`; etapa 2 do mesmo doc), e
 quem chama essas portas é a ingestão do iFood (`integracoes/ifood/`): autenticação do aplicativo,
@@ -59,8 +60,8 @@ O que **não** pode:
 
 Quando outra feature precisa da entidade para montar uma relação JPA, o service dono pode expor
 `buscarEntidadePorId` na interface (`LojaService`, `PlataformaService`, `FormaDePagamentoService`,
-`ItemService`, `CategoriaService`). É o caminho para `CanalDeVenda` apontar para `Loja` e
-`Plataforma`, ou `Pedido` para `FormaDePagamento` e `Item`, sem injetar repositório alheio. O
+`ItemService`, `CategoriaService`, `UsuarioService`). É o caminho para `CanalDeVenda` apontar para `Loja` e
+`Plataforma`, `Pedido` para `FormaDePagamento` e `Item`, ou `HistoricoPedido` para `Usuario`, sem injetar repositório alheio. O
 retorno é só para uso entre services: controller continua devolvendo ResponseDTO. Pelo mesmo
 motivo `PedidoService` expõe `buscarFaturaveisDoPeriodo` e `marcarComoFechados` para o
 `fechamentodecaixa`.
@@ -199,13 +200,13 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (17/10/2026):** 316 testes no Java sem o `CdpApplicationTests` (que exige
-MariaDB no ar): 314 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (17/10/2026):** 341 testes no Java sem o `CdpApplicationTests` (que exige
+MariaDB no ar): 339 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
 | `FechamentoServiceImplTest` (29) | taxa, taxa congelada, taxa de entrega somada, descontada ou ignorada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
-| `PedidoServiceImplTest` (56) | congelamento das taxas (a da plataforma vem do canal de venda da loja), taxa de entrega congelada com a regra do canal ou somada quando a loja entregou, imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo); recusa de edição, de mudança de status e de exclusão de pedido externo pelo caminho público; `aplicarStatusExterno` (não encontrado, fechado sem alteração e com WARN, fora de ordem, repetido, terminal, aplica, cancela de qualquer etapa não terminal) |
+| `PedidoServiceImplTest` (81) | histórico: cancelamento sem motivo ou com motivo fora de 3 a 255 recusado sem gravar, cancelamento com motivo registra usuário e motivo sem espaços, outro status não registra, edição registra o resumo de antes, exclusão registra antes de apagar, recusa por pedido fechado ou externo não registra, cancelamento externo registra sem usuário (e não registra quando ignorado ou não é cancelamento), histórico de pedido excluído legível sem consultar o pedido, lista vazia, motivo mais recente na listagem e no detalhe;  congelamento das taxas (a da plataforma vem do canal de venda da loja), taxa de entrega congelada com a regra do canal ou somada quando a loja entregou, imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo); recusa de edição, de mudança de status e de exclusão de pedido externo pelo caminho público; `aplicarStatusExterno` (não encontrado, fechado sem alteração e com WARN, fora de ordem, repetido, terminal, aplica, cancela de qualquer etapa não terminal) |
 | `UsuarioServiceImplTest` (20) | invariante do último gerente, cadastro, atualização parcial, ativação; troca de senha e desativação publicam a invalidação de sessões, atualização sem senha ou recusada não publica |
 | `UsuarioMasterServiceImplTest` (15) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro (8 a 72) não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
@@ -343,8 +344,9 @@ item/                 → itens do cardápio
   service/
 
 categoria/            → categorias do cardápio
-pedido/               → pedidos e itens de pedido (Pedido + ItemPedido)
-  enumerator/          → StatusPedido (etapas do kanban, ordem e terminais), ResultadoStatusExterno
+pedido/               → pedidos e itens de pedido (Pedido + ItemPedido) e o histórico (HistoricoPedido)
+  enumerator/          → StatusPedido (etapas do kanban, ordem e terminais), ResultadoStatusExterno,
+                         AcaoHistoricoPedido
 plataforma/           → tipos de canal (Balcão, iFood, etc.); sem taxa
 loja/                 → lojas (multi-loja); sem DELETE, desativa por `ativo`; publica `LojaCadastradaEvent`
 canaldevenda/         → vínculo Loja × Plataforma: merchantId, taxa e ativo; `CanalDeBalcaoListener`
@@ -443,6 +445,7 @@ Project uses Lombok. Prefer @Data for DTOs, @Getter/@Setter for entities.
 - **Pedido** — order with `nomeCliente` (nullable), `horarioPedido`, `valor` (stored at time of order), `status` (`StatusPedido` enum), `taxaPlataformaPercentual` e `taxaPagamentoPercentual` (congeladas na venda), FK to `Loja` (set at creation, never changes), `Plataforma` and `FormaDePagamento`; table `pedidos`. `AdicionarPedidoRequest` is `(lojaId, plataformaId, nomeCliente, formaDePagamentoId, itens)`. New orders start `EM_ABERTO`; lifecycle `EM_ABERTO → ACEITO → EM_PREPARO → PRONTO → EM_ROTA → CONCLUIDO` (balcão skips `EM_ROTA`), plus `CANCELADO`. Advance via `PATCH /pedidos/{id}/status`. `plataformaPedidoId` (nullable) is the order id on the external platform (the iFood `orderId`); null for PDV orders; unique `(plataforma_id, plataforma_pedido_id)` (V9)
 - **Pedido** — campo `fechado` marcado pelo `POST /fechamento`; pedido fechado não aceita mais alteração
 - **Pedido** — `taxaEntrega` e `tratamentoTaxaEntrega` (V12), congelados na venda: pedido de balcão ou sem taxa fica com zero e `IGNORAR`. Ver "Taxa de entrega" abaixo
+- **HistoricoPedido** — registro de `CANCELADO`, `EDITADO` ou `EXCLUIDO` (`AcaoHistoricoPedido`) com `pedidoId` **sem FK** (sobrevive à exclusão física do pedido), `usuario` (FK para `usuarios`, nulo quando a ação vem da plataforma externa), `dataHora` e `detalhe` (até 500); table `historico_pedido` (V14), índice por `pedido_id`. Ver "Histórico do pedido" abaixo
 - **ItemPedido** — line of a `Pedido`; stores `nomeItem`, `quantidade` and `precoUnitario`, all three always filled and locked at order time; FK to `Item` is **optional** (set by the PDV, null on an external order — never assume `getItem()` is non-null, and read the name from `nomeItem`, not from `item.getNome()`); table `itens_pedido` (V10)
 
 ### Regra de faturamento
@@ -485,6 +488,35 @@ de `pedido`, chamando `PedidoService.marcarComoFechados`.
 
 Cancelar um pedido é `PATCH /pedidos/{id}/status` com `CANCELADO`, antes do fechamento.
 `DELETE /pedidos/{id}` continua sendo exclusão física e só funciona em pedido ainda não fechado.
+
+### Histórico do pedido
+
+`historico_pedido` (V14) guarda quem cancelou, editou ou excluiu um pedido e por quê. O
+`pedido_id` não tem FK de propósito: o registro de `EXCLUIDO` precisa continuar legível depois do
+`DELETE` físico. O controller passa o id do `@AuthenticationPrincipal Usuario` e o
+`PedidoServiceImpl` resolve a entidade por `UsuarioService.buscarEntidadePorId` (`usuario` não
+depende de `pedido`, então não há ciclo).
+
+- **Cancelamento pelo painel:** `PATCH /pedidos/{id}/status` com `CANCELADO` exige `motivo`
+  (`AtualizarStatusPedidoRequest.motivo`, 3 a 255 caracteres depois do `strip`); sem ele, 400 por
+  `RequisicaoInvalidaException`. A regra fica no service porque depende do status: para os
+  outros status o motivo é ignorado e nada é registrado. Cancelar de novo um pedido já cancelado
+  grava outro registro, e o motivo mostrado passa a ser o mais recente.
+- **Edição e exclusão pelo painel** registram `EDITADO` (detalhe: valor, cliente, plataforma e
+  pagamento de **antes** da edição) e `EXCLUIDO` (status e o mesmo resumo).
+- **Cancelamento externo:** `aplicarStatusExterno` que resulta em `APLICADO` com `CANCELADO`
+  registra `CANCELADO` sem usuário, com detalhe "Cancelado pela plataforma <nome>". Evento
+  ignorado, fora de ordem ou em pedido fechado não registra.
+- As recusas atuais (pedido fechado, pedido externo pelo painel) vêm **antes** de qualquer
+  registro, e o registro é gravado na mesma transação da alteração.
+- **Leitura:** `GET /pedidos/{id}/historico` (só GERENTE) devolve `HistoricoPedidoResponseDTO`
+  em ordem cronológica, lista vazia quando não há nada, e não consulta `pedidos` (funciona para
+  pedido excluído). `PedidoResponseDTO.motivoCancelamento` é o detalhe do `CANCELADO` mais
+  recente, só com status `CANCELADO`; `listarPedidos` busca os motivos de todos os cancelados
+  numa consulta só.
+- **SPA:** em `PedidosView.vue`, escolher "Cancelado" no seletor de etapa ou "Cancelar pedido" no
+  detalhe abre o modal do motivo; o card e o detalhe mostram o motivo; o detalhe tem o botão
+  "Histórico" para o gerente.
 
 As taxas são **congeladas no pedido** no momento da venda, em
 `Pedido.taxaPlataformaPercentual` e `Pedido.taxaPagamentoPercentual`, exatamente como
@@ -642,7 +674,7 @@ revogação comita junto com a alteração. O access token já emitido continua 
 (no máximo 30 min) depois da troca de senha; no usuário desativado o `JwtFilter` já recusa na
 hora. Mudança de cargo não revoga nada. Endpoint-level authorization uses `@PreAuthorize("hasRole('GERENTE')")`. Access control per resource:
 
-- **Pedido** — write operations (register, update, delete) open to all authenticated users; only `DELETE` requires GERENTE
+- **Pedido** — write operations (register, update, delete) open to all authenticated users; only `DELETE` and `GET /pedidos/{id}/historico` require GERENTE
 - **Plataforma / FormaDePagamento** — all write operations restricted to GERENTE; reads open to all authenticated
 - **Loja / CanalDeVenda** — all write operations restricted to GERENTE; reads open to all authenticated (the PDV needs the store list)
 - **Item / Categoria** — all write operations restricted to GERENTE; reads open to all authenticated
