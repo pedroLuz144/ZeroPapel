@@ -124,8 +124,12 @@ O `Dockerfile` tem três estágios: build da SPA com `node:22`, jar com `./mvnw 
 
 **Produção** é o `docker-compose.prod.yml`, separado do de desenvolvimento: sem `build` (usa a
 imagem `zeropapel:atual`, gerada no PC e enviada pronta), memória limitada para um servidor de
-2 GB (JVM com `-Xmx384m`, MariaDB com buffer de 128 MB), banco sem porta publicada, logs com
-rotação e volume próprio `zeropapel-prod-mariadb`. Publicação, backup, volta de versão e acesso
+2 GB (JVM com `-Xmx384m`, MariaDB com buffer de 128 MB), banco sem porta publicada, aplicação
+publicada só em `127.0.0.1:8080`, logs com rotação e volume próprio `zeropapel-prod-mariadb`. O
+loopback é de propósito: porta publicada pelo Docker passa por fora do `ufw`, e em HTTP puro na
+rede da loja a senha e o token iriam abertos. A única entrada é o Tailscale Funnel no host, que
+termina o HTTPS e repassa para o `127.0.0.1:8080`; não há acesso pela LAN, e o
+`CORS_ALLOWED_ORIGIN` de produção é a URL do Funnel. Publicação, backup, volta de versão e acesso
 remoto (Tailscale) estão em `scripts/servidor-notebook/README.md`.
 
 ### Frontend (SPA)

@@ -60,9 +60,9 @@ echo "$VERSAO" > versao-atual
 
 $COMPOSE up -d
 
-echo "Esperando a aplicação responder em :8080 (a primeira subida leva uns 2 minutos)"
+echo "Esperando a aplicação responder em 127.0.0.1:8080 (a primeira subida leva uns 2 minutos)"
 for _ in $(seq 1 60); do
-    if curl -fsS -o /dev/null http://localhost:8080/login; then
+    if curl -fsS -o /dev/null http://127.0.0.1:8080/login; then
         echo "No ar: versão $VERSAO"
         docker images zeropapel --format '{{.Tag}}' \
             | grep -vxE "atual|anterior|$VERSAO" \

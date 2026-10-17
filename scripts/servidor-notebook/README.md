@@ -157,6 +157,7 @@ No notebook:
 
 ```bash
 cd ~/zeropapel
+curl -I http://127.0.0.1:8080/login
 docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs -f app
 docker stats --no-stream
@@ -184,9 +185,16 @@ Drive sozinho.
 
 | Quem | De onde | Como |
 |---|---|---|
-| Atendente (PDV) | dentro da loja | `http://IP-do-notebook:8080` na rede da loja |
+| Atendente (PDV) | dentro da loja | link público do **Tailscale Funnel** (HTTPS) |
 | Gerente (dashboard, fechamento) | celular, de qualquer lugar | link público do **Tailscale Funnel**, sem instalar nada |
-| Você (manutenção, SSH, publicar) | de qualquer lugar | Tailscale |
+| Você (manutenção, SSH, publicar) | de qualquer lugar | SSH pelo Tailscale; o sistema pelo link do Funnel |
+
+A aplicação só escuta em `127.0.0.1:8080` no notebook (`docker-compose.prod.yml`). **Não existe
+acesso por `http://IP-do-notebook:8080` na rede da loja**, nem por `http://zeropapel:8080` no
+Tailscale: em HTTP puro a senha do login e o token iriam abertos pela rede, e qualquer aparelho
+no mesmo Wi-Fi poderia ler. Toda entrada no sistema é pelo Funnel, que termina o HTTPS no
+notebook e repassa para o `127.0.0.1:8080`. Consequência: sem internet na loja, o PDV fica fora
+do ar, porque até o computador do caixa passa pelo Funnel.
 | iFood | não entra | o servidor é que chama o iFood |
 
 Tudo aqui é de graça: o Tailscale no plano pessoal e o Funnel com o endereço `*.ts.net`, sem
@@ -200,8 +208,15 @@ roteador, ter IP fixo de internet nem domínio para o iFood funcionar.
 
 ### Dentro da loja
 
-O notebook e o computador ou tablet do caixa na mesma rede: `http://192.168.x.y:8080`. Salve
-como favorito ou atalho na tela inicial. Com o IP reservado no roteador, o endereço não muda.
+O computador ou tablet do caixa abre o mesmo link do Funnel que a gerente usa
+(`https://zeropapel.<rede>.ts.net`). Salve como favorito ou atalho na tela inicial. O IP
+reservado no roteador continua servindo para o SSH dentro da loja.
+
+Para testar no próprio notebook, sem passar pelo Funnel:
+
+```bash
+curl -I http://127.0.0.1:8080/login
+```
 
 ### Tailscale: a sua rede privada
 
@@ -220,12 +235,13 @@ sudo tailscale set --hostname zeropapel
 O `tailscale up` mostra um link: abra no navegador e entre com a sua conta. Instale o app
 Tailscale no seu PC, na mesma conta. A partir daí:
 
-- sistema: `http://zeropapel:8080`
 - SSH: `ssh usuario@zeropapel`, e `publicar.sh usuario@zeropapel` de qualquer lugar
+- sistema: pelo link do Funnel, como todo mundo (o `8080` não responde pelo endereço do
+  Tailscale, só no `127.0.0.1` do notebook)
 
 ### Link público: Tailscale Funnel
 
-O Funnel publica o 8080 do notebook na internet com HTTPS e certificado válido, num endereço
+O Funnel publica o `127.0.0.1:8080` do notebook na internet com HTTPS e certificado válido, num endereço
 fixo do tipo `https://zeropapel.tail1234ab.ts.net`. A gerente abre no navegador do celular, sem
 app e sem conta no Tailscale. O túnel é de saída, como o do iFood: nenhuma porta do roteador é
 aberta e o CGNAT não atrapalha.
@@ -238,9 +254,8 @@ aberta e o CGNAT não atrapalha.
    `auditor-seguranca` antes de passar o link adiante.
 2. No `.env` do notebook, `CORS_ALLOWED_ORIGIN` com o endereço do Funnel, **com `https://` e sem
    barra no fim**. O navegador fala HTTPS com o Tailscale e a aplicação recebe HTTP: sem esse
-   valor, login e qualquer POST pelo link público voltam 403. O acesso pela rede da loja
-   (`http://192.168.x.y:8080`) e por `http://zeropapel:8080` continua funcionando, porque ali
-   o navegador fala com a mesma origem e o CORS nem entra em jogo.
+   valor, login e qualquer POST pelo link público voltam 403. Como o Funnel é a única entrada,
+   esse é o único valor que faz sentido em produção.
 
 Ligar, no notebook (com o Tailscale já conectado):
 
@@ -271,9 +286,10 @@ embaixo, tabelas largas viram cartões e o painel de pedidos rola de etapa em et
 ### Firewall e o Docker
 
 O `ufw` liberado pelo `preparar-servidor.sh` cuida do SSH, mas porta publicada pelo Docker
-**passa por fora do ufw**. O 8080 fica acessível a qualquer aparelho que alcance o notebook: a
-rede da loja e a sua rede do Tailscale. Da internet, a única entrada é o Funnel, com HTTPS; a
-porta em si continua inalcançável, porque o roteador não encaminha nada para ela. Por isso o Wi-Fi da loja onde fica o servidor **não** deve ser o
-mesmo Wi-Fi aberto para clientes.
+**passa por fora do ufw**. Por isso o compose de produção publica a aplicação só em
+`127.0.0.1:8080`: nenhum aparelho da rede da loja nem do Tailscale alcança a porta, só o próprio
+notebook (e, por ele, o Funnel). Não troque para `"8080:8080"`: isso volta a abrir o HTTP sem
+criptografia para toda a rede, por fora do firewall. Mesmo assim, o Wi-Fi da loja onde fica o
+servidor **não** deve ser o mesmo Wi-Fi aberto para clientes, por causa do SSH.
 
 O MariaDB não publica porta nenhuma: só a aplicação, dentro da rede do Docker, fala com ele.
