@@ -1,6 +1,7 @@
 package com.goldenpetiscaria.zeropapel.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authorization.AuthorizationDeniedException;
@@ -48,6 +49,16 @@ public class GlobalExceptionHandler {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(MuitasTentativasException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ResponseEntity<Map<String, String>> handleMuitasTentativas(MuitasTentativasException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, ex.getEspera().toSeconds())))
+                .body(error);
     }
 
     @ExceptionHandler(AuthenticationException.class)

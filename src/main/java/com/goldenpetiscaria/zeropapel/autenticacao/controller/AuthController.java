@@ -3,6 +3,7 @@ package com.goldenpetiscaria.zeropapel.autenticacao.controller;
 import com.goldenpetiscaria.zeropapel.autenticacao.dto.request.LoginRequest;
 import com.goldenpetiscaria.zeropapel.autenticacao.dto.request.RefreshRequest;
 import com.goldenpetiscaria.zeropapel.autenticacao.dto.response.LoginResponse;
+import com.goldenpetiscaria.zeropapel.autenticacao.service.LimiteDeTentativasDeLoginService;
 import com.goldenpetiscaria.zeropapel.autenticacao.service.RefreshTokenService;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.security.JwtService;
@@ -24,21 +25,25 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
     private final RefreshTokenService refreshTokenService;
+    private final LimiteDeTentativasDeLoginService limiteDeTentativasDeLogin;
 
     public AuthController(
             AuthenticationManager authenticationManager,
             JwtService jwtService,
             UserDetailsService userDetailsService,
-            RefreshTokenService refreshTokenService
+            RefreshTokenService refreshTokenService,
+            LimiteDeTentativasDeLoginService limiteDeTentativasDeLogin
     ) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userDetailsService = userDetailsService;
         this.refreshTokenService = refreshTokenService;
+        this.limiteDeTentativasDeLogin = limiteDeTentativasDeLogin;
     }
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(@RequestBody @Valid LoginRequest request) {
+        limiteDeTentativasDeLogin.registrarTentativa(request.usuario());
 
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -46,6 +51,7 @@ public class AuthController {
                         request.senha()
                 )
         );
+        limiteDeTentativasDeLogin.registrarSucesso(request.usuario());
 
         Usuario usuario = (Usuario) userDetailsService.loadUserByUsername(request.usuario());
         String token = jwtService.gerarToken(usuario);
