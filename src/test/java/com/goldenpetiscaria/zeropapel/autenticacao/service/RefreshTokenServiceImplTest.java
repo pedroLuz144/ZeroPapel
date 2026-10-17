@@ -125,6 +125,16 @@ class RefreshTokenServiceImplTest {
         verify(refreshTokenRepository, never()).delete(any());
     }
 
+    @Test
+    @DisplayName("revoga todos os refresh tokens do usuario de uma vez")
+    void revogarTodosDoUsuario_apagaPeloIdDoUsuario() {
+        when(refreshTokenRepository.deleteByUsuarioId(7L)).thenReturn(2);
+
+        service.revogarTodosDoUsuario(7L);
+
+        verify(refreshTokenRepository).deleteByUsuarioId(7L);
+    }
+
     private RefreshToken refreshToken(Usuario usuario, LocalDateTime expiracao) {
         return new RefreshToken(TOKEN, usuario, expiracao);
     }

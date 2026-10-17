@@ -8,10 +8,12 @@ import com.goldenpetiscaria.zeropapel.usuario.dto.response.UsuarioResponseDTO;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
 import com.goldenpetiscaria.zeropapel.usuario.enumerator.ResultadoUsuarioMaster;
+import com.goldenpetiscaria.zeropapel.usuario.evento.SessoesDoUsuarioInvalidadasEvent;
 import com.goldenpetiscaria.zeropapel.usuario.repository.UsuarioRepository;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,15 +28,18 @@ public class UsuarioServiceImpl implements UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final Validator validator;
+    private final ApplicationEventPublisher eventos;
 
     public UsuarioServiceImpl(
             UsuarioRepository usuarioRepository,
             PasswordEncoder passwordEncoder,
-            Validator validator
+            Validator validator,
+            ApplicationEventPublisher eventos
     ) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.validator = validator;
+        this.eventos = eventos;
     }
 
     @Override
@@ -61,6 +66,7 @@ public class UsuarioServiceImpl implements UsuarioService {
     }
 
     @Override
+    @Transactional
     public UsuarioResponseDTO atualizarUsuario(Long id, AtualizarUsuarioRequest request) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
@@ -80,10 +86,16 @@ public class UsuarioServiceImpl implements UsuarioService {
             usuario.setUsuario(request.usuario());
         }
 
-        return toDTO(usuarioRepository.save(usuario));
+        Usuario salvo = usuarioRepository.save(usuario);
+        if (request.senha() != null) {
+            eventos.publishEvent(new SessoesDoUsuarioInvalidadasEvent(salvo.getId()));
+            log.info("Senha do usuário id={} alterada; sessões revogadas", salvo.getId());
+        }
+        return toDTO(salvo);
     }
 
     @Override
+    @Transactional
     public void desativarUsuario(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado para o ID informado"));
@@ -92,7 +104,8 @@ public class UsuarioServiceImpl implements UsuarioService {
         }
         usuario.setAtivo(false);
         usuarioRepository.save(usuario);
-        log.info("Usuário id={} desativado", id);
+        eventos.publishEvent(new SessoesDoUsuarioInvalidadasEvent(id));
+        log.info("Usuário id={} desativado; sessões revogadas", id);
     }
 
     @Override

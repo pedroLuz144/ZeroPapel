@@ -19,6 +19,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Optional;
@@ -43,6 +44,9 @@ class UsuarioMasterServiceImplTest {
     @Mock
     private PasswordEncoder passwordEncoder;
 
+    @Mock
+    private ApplicationEventPublisher eventos;
+
     private UsuarioServiceImpl service;
 
     @BeforeAll
@@ -58,7 +62,7 @@ class UsuarioMasterServiceImplTest {
 
     @BeforeEach
     void montarService() {
-        service = new UsuarioServiceImpl(usuarioRepository, passwordEncoder, validator);
+        service = new UsuarioServiceImpl(usuarioRepository, passwordEncoder, validator, eventos);
     }
 
     @Test

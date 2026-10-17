@@ -66,4 +66,10 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
             refreshTokenRepository.delete(rt);
         });
     }
+
+    @Transactional
+    public void revogarTodosDoUsuario(Long usuarioId) {
+        int revogados = refreshTokenRepository.deleteByUsuarioId(usuarioId);
+        log.info("Revogados {} refresh token(s) do usuário id={}", revogados, usuarioId);
+    }
 }

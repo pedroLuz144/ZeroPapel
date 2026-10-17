@@ -197,14 +197,14 @@ Stack já disponível — **não adicionar dependências novas de teste sem perg
 
 Sem banco nos testes unitários: repositórios são mockados. Ver `/gen-tests`.
 
-**Estado atual (17/10/2026):** 300 testes no Java sem o `CdpApplicationTests` (que exige
-MariaDB no ar): 298 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
+**Estado atual (17/10/2026):** 307 testes no Java sem o `CdpApplicationTests` (que exige
+MariaDB no ar): 305 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`).
 
 | Classe de teste | Cobre |
 |---|---|
 | `FechamentoServiceImplTest` (29) | taxa, taxa congelada, taxa de entrega somada, descontada ou ignorada, ticket médio, ranking (inclusive item externo, sem misturar com item de cardápio de mesmo nome, e nome gravado na venda), agrupamentos, marcação do período |
 | `PedidoServiceImplTest` (56) | congelamento das taxas (a da plataforma vem do canal de venda da loja), taxa de entrega congelada com a regra do canal ou somada quando a loja entregou, imutabilidade do pedido fechado, preço travado, nome do item gravado, status; `registrarPedidoExterno` (itens livres sem consultar o cardápio, taxas congeladas, idempotência, validação, canal inativo); recusa de edição, de mudança de status e de exclusão de pedido externo pelo caminho público; `aplicarStatusExterno` (não encontrado, fechado sem alteração e com WARN, fora de ordem, repetido, terminal, aplica, cancela de qualquer etapa não terminal) |
-| `UsuarioServiceImplTest` (15) | invariante do último gerente, cadastro, atualização parcial, ativação |
+| `UsuarioServiceImplTest` (20) | invariante do último gerente, cadastro, atualização parcial, ativação; troca de senha e desativação publicam a invalidação de sessões, atualização sem senha ou recusada não publica |
 | `UsuarioMasterServiceImplTest` (15) | usuário master: cria gerente ativo com senha codificada só com a tabela vazia; tabela não vazia não consulta mais nada; login ou senha ausentes ou em branco não criam; senha fora da regra do cadastro (8 a 72) não cria |
 | `InicializadorUsuarioMasterTest` (9) | runner repassa as propriedades `admin.*` ao service, aplica o nome padrão e não derruba a subida em nenhum resultado |
 | `CanalDeVendaServiceImplTest` (29) | unicidade loja × plataforma, tratamento da taxa de entrega (padrão e alteração), canal de balcão criado com taxa zero e protegido contra exclusão e desativação na loja ativa, unicidade e normalização do `merchantId`, atualização parcial, recusa de canal ou loja inativos, busca do canal ativo por `merchantId` |
@@ -222,7 +222,8 @@ MariaDB no ar): 298 passando e 2 ignorados na suíte normal (`IfoodApiRealTest`)
 | `CadastroVinculadoAPedidoListenerTest` (4) | veta excluir plataforma ou forma de pagamento com pedido vinculado |
 | `CategoriaVinculadaAItemListenerTest` (2) | veta excluir categoria com item vinculado |
 | `LimiteDeTentativasDeLoginServiceImplTest` (14) | aceita até 5 tentativas, recusa a sexta com o tempo de espera, recusa não estende o bloqueio, libera ao fim da janela, sucesso zera, conta por login, normaliza maiúsculas, espaços, acento e largura total na mesma chave; mapa cheio recusa login novo com 429 sem passar do limite, não expulsa nem zera o contador de login real, continua contando login já acompanhado, abre espaço quando uma janela vence e descarta os vencidos |
-| `RefreshTokenServiceImplTest` (8) | rotação, expiração, recusa de usuário inativo, revogação |
+| `RefreshTokenServiceImplTest` (9) | rotação, expiração, recusa de usuário inativo, revogação de um token e de todos os tokens do usuário |
+| `RevogacaoDeSessoesListenerTest` (1) | a invalidação de sessões revoga todos os refresh tokens do usuário |
 | `JwtFilterTest` (5) | token de usuário desativado não autentica; assinatura inválida; header ausente |
 | `RespostaNaoAutorizadaTest` (6) | entry point responde 401 e access denied handler responde 403, ambos com corpo JSON `{ "error": ... }` |
 | `CdpApplicationTests` (1) | smoke test de subida do contexto (exige MariaDB no ar) |
@@ -243,7 +244,7 @@ URL_BD=jdbc:mariadb://localhost:3306/zeropapel
 USER_BD=root
 SENHA_BD=root
 JWT_SECRET=<base64-encoded-secret>
-JWT_EXPIRATION_MS=86400000
+JWT_EXPIRATION_MS=1800000
 CORS_ALLOWED_ORIGIN=http://localhost:5173
 ADMIN_USUARIO=admin
 ADMIN_SENHA=<senha-do-primeiro-gerente>
@@ -310,6 +311,7 @@ autenticacao/         → login, refresh token, JWT auth flow
   dto/request/
   dto/response/
   entity/             → RefreshToken
+  listener/           → RevogacaoDeSessoesListener (revoga os refresh tokens na troca de senha e na desativação)
   repository/
   service/
 
@@ -319,6 +321,7 @@ usuario/              → cadastro e gestão de usuários
   dto/response/
   entity/             → Usuario (implements UserDetails)
   enumerator/         → Cargo (GERENTE | OPERADOR), ResultadoUsuarioMaster
+  evento/             → SessoesDoUsuarioInvalidadasEvent
   inicializacao/      → InicializadorUsuarioMaster (cria o primeiro gerente na subida)
   repository/
   service/
@@ -619,7 +622,18 @@ plataforma (veto do `CadastroVinculadoAPedidoListener`), então o cascade só al
 
 ### Security
 
-Stateless JWT auth via `JwtFilter`. Access tokens expire in 24 h; refresh tokens allow renewal without re-login. Endpoint-level authorization uses `@PreAuthorize("hasRole('GERENTE')")`. Access control per resource:
+Stateless JWT auth via `JwtFilter`. Access tokens expire in 30 min (`JWT_EXPIRATION_MS=1800000`); refresh tokens (7 days) allow renewal without re-login: `frontend/src/api/http.ts` troca o refresh token ao receber 401 e repete a requisição, então a sessão não cai a cada 30 min.
+
+**Revogação de sessão.** Trocar a senha (`PATCH /usuarios/{id}` com `senha`) e desativar o usuário
+apagam todos os refresh tokens dele. `UsuarioServiceImpl` publica
+`usuario/evento/SessoesDoUsuarioInvalidadasEvent` depois de salvar e
+`autenticacao/listener/RevogacaoDeSessoesListener` chama
+`RefreshTokenService.revogarTodosDoUsuario`. É evento, e não chamada direta, porque `autenticacao`
+já depende de `usuario` (entidade `Usuario`): `usuario` chamar `autenticacao` seria ciclo. O
+listener é síncrono e `atualizarUsuario`/`desativarUsuario` são `@Transactional`, então a
+revogação comita junto com a alteração. O access token já emitido continua valendo até expirar
+(no máximo 30 min) depois da troca de senha; no usuário desativado o `JwtFilter` já recusa na
+hora. Mudança de cargo não revoga nada. Endpoint-level authorization uses `@PreAuthorize("hasRole('GERENTE')")`. Access control per resource:
 
 - **Pedido** — write operations (register, update, delete) open to all authenticated users; only `DELETE` requires GERENTE
 - **Plataforma / FormaDePagamento** — all write operations restricted to GERENTE; reads open to all authenticated

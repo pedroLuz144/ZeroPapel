@@ -7,6 +7,7 @@ import com.goldenpetiscaria.zeropapel.usuario.dto.request.CadastrarUsuarioReques
 import com.goldenpetiscaria.zeropapel.usuario.dto.response.UsuarioResponseDTO;
 import com.goldenpetiscaria.zeropapel.usuario.entity.Usuario;
 import com.goldenpetiscaria.zeropapel.usuario.enumerator.Cargo;
+import com.goldenpetiscaria.zeropapel.usuario.evento.SessoesDoUsuarioInvalidadasEvent;
 import com.goldenpetiscaria.zeropapel.usuario.repository.UsuarioRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -16,7 +17,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -35,6 +38,9 @@ class UsuarioServiceImplTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private ApplicationEventPublisher eventos;
 
     @InjectMocks
     private UsuarioServiceImpl service;
@@ -240,6 +246,78 @@ class UsuarioServiceImplTest {
 
             assertThatThrownBy(() -> service.desativarUsuario(99L))
                     .isInstanceOf(RecursoNaoEncontradoException.class);
+        }
+    }
+
+    @Nested
+    class RevogacaoDeSessoes {
+
+        @Test
+        @DisplayName("trocar a senha invalida as sessoes do usuario")
+        void atualizarUsuario_publicaInvalidacaoDeSessoes_quandoSenhaMuda() {
+            Usuario existente = usuarioComId(7L);
+            when(usuarioRepository.findById(7L)).thenReturn(Optional.of(existente));
+            when(passwordEncoder.encode("novaSenha123")).thenReturn("hash-novo");
+            when(usuarioRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.atualizarUsuario(7L, pedido(null, null, null, "novaSenha123"));
+
+            verify(eventos).publishEvent(new SessoesDoUsuarioInvalidadasEvent(7L));
+        }
+
+        @Test
+        @DisplayName("atualizar sem trocar a senha mantem as sessoes")
+        void atualizarUsuario_naoInvalidaSessoes_quandoSenhaNaoMuda() {
+            Usuario existente = usuarioComId(7L);
+            when(usuarioRepository.findById(7L)).thenReturn(Optional.of(existente));
+            when(usuarioRepository.save(any())).thenAnswer(chamada -> chamada.getArgument(0));
+
+            service.atualizarUsuario(7L, pedido("Wellington Novo", null, null, null));
+
+            verify(eventos, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("atualizacao recusada nao invalida as sessoes")
+        void atualizarUsuario_naoInvalidaSessoes_quandoRecusada() {
+            Usuario existente = usuarioComId(7L);
+            when(usuarioRepository.findById(7L)).thenReturn(Optional.of(existente));
+            when(passwordEncoder.encode("novaSenha123")).thenReturn("hash-novo");
+            when(usuarioRepository.findByUsuario("eliane")).thenReturn(Optional.of(usuario(Cargo.GERENTE, true)));
+
+            assertThatThrownBy(() -> service.atualizarUsuario(7L, pedido(null, "eliane", null, "novaSenha123")))
+                    .isInstanceOf(ConflitoException.class);
+
+            verify(eventos, never()).publishEvent(any());
+        }
+
+        @Test
+        @DisplayName("desativar o usuario invalida as sessoes dele")
+        void desativarUsuario_publicaInvalidacaoDeSessoes() {
+            Usuario existente = usuarioComId(7L);
+            when(usuarioRepository.findById(7L)).thenReturn(Optional.of(existente));
+
+            service.desativarUsuario(7L);
+
+            verify(eventos).publishEvent(new SessoesDoUsuarioInvalidadasEvent(7L));
+        }
+
+        @Test
+        @DisplayName("desativacao recusada do unico gerente nao invalida as sessoes")
+        void desativarUsuario_naoInvalidaSessoes_quandoRecusada() {
+            Usuario gerente = usuario(Cargo.GERENTE, true);
+            when(usuarioRepository.findById(1L)).thenReturn(Optional.of(gerente));
+            when(usuarioRepository.countByCargoAndAtivoTrue(Cargo.GERENTE)).thenReturn(1L);
+
+            assertThatThrownBy(() -> service.desativarUsuario(1L)).isInstanceOf(ConflitoException.class);
+
+            verify(eventos, never()).publishEvent(any());
+        }
+
+        private Usuario usuarioComId(Long id) {
+            Usuario usuario = usuario(Cargo.OPERADOR, true);
+            ReflectionTestUtils.setField(usuario, "id", id);
+            return usuario;
         }
     }
 
