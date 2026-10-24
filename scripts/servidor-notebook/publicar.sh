@@ -48,7 +48,7 @@ cd "$HOME/$PASTA"
 chmod +x backup.sh voltar-versao.sh
 COMPOSE="docker compose -f docker-compose.prod.yml"
 
-if [ -n "$($COMPOSE ps -q banco 2>/dev/null)" ]; then
+if [ -n "$($COMPOSE ps --status running -q banco 2>/dev/null)" ]; then
     ./backup.sh
 fi
 
