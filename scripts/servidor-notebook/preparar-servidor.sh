@@ -46,7 +46,12 @@ LINHA="0 4 * * * $HOME/zeropapel/backup.sh >> $HOME/zeropapel/backup.log 2>&1"
 ( crontab -l 2>/dev/null | grep -v 'zeropapel/backup.sh' || true; echo "$LINHA" ) | crontab -
 
 echo
-echo "Pronto. Falta:"
-echo "  1. Criar ~/zeropapel/.env (veja o README desta pasta)"
-echo "  2. Reiniciar (sudo reboot) para valer o grupo docker e a tampa"
-echo "  3. Do PC: scripts/servidor-notebook/publicar.sh $USER@$(hostname)"
+echo "Pronto. Falta (detalhes no README desta pasta):"
+echo "  1. Reiniciar (sudo reboot) para valer o grupo docker e a tampa"
+echo "  2. Criar ~/zeropapel/.env por heredoc (README, seção 2)"
+echo "  3. Instalar o Tailscale e ligar o Funnel (README, seção 4)"
+echo "  4. Do PC: chave SSH e depois scripts/servidor-notebook/publicar.sh $USER@<endereço>"
+echo "     <endereço> é o IP do notebook na rede da loja ou, com o Tailscale, o nome da"
+echo "     máquina na tailnet. IPs deste notebook agora: $(hostname -I 2>/dev/null || echo '?')"
+echo "  O backup do cron só funciona depois do primeiro publicar.sh; até lá ele grava o erro em"
+echo "  ~/zeropapel/backup.log."

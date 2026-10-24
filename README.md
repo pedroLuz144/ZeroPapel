@@ -67,7 +67,7 @@ O `JWT_SECRET` precisa ser **base64 de no mínimo 32 bytes** — abaixo disso a 
 sobe, por decisão da biblioteca de JWT. Para gerar um:
 
 ```bash
-openssl rand -base64 64
+openssl rand -base64 48 | tr -d '\n'
 ```
 
 O **primeiro gerente** vem de `ADMIN_USUARIO` e `ADMIN_SENHA` (e `ADMIN_NOME`, opcional): na
