@@ -1,8 +1,10 @@
 package com.goldenpetiscaria.zeropapel.common.exception;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.authorization.AuthorizationDeniedException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -26,6 +28,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    @ExceptionHandler(RequisicaoInvalidaException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Map<String, String>> handleRequisicaoInvalida(RequisicaoInvalidaException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.badRequest().body(error);
+    }
+
     @ExceptionHandler(ConflitoException.class)
     @ResponseStatus(HttpStatus.CONFLICT)
     public ResponseEntity<Map<String, String>> handleConflict(ConflitoException ex) {
@@ -40,6 +50,16 @@ public class GlobalExceptionHandler {
         Map<String, String> error = new HashMap<>();
         error.put("error", ex.getMessage());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
+    }
+
+    @ExceptionHandler(MuitasTentativasException.class)
+    @ResponseStatus(HttpStatus.TOO_MANY_REQUESTS)
+    public ResponseEntity<Map<String, String>> handleMuitasTentativas(MuitasTentativasException ex) {
+        Map<String, String> error = new HashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, String.valueOf(Math.max(1, ex.getEspera().toSeconds())))
+                .body(error);
     }
 
     @ExceptionHandler(AuthenticationException.class)
@@ -68,6 +88,15 @@ public class GlobalExceptionHandler {
             errors.put(err.getField(), err.getDefaultMessage())
         );
         return ResponseEntity.badRequest().body(errors);
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ResponseEntity<Map<String, String>> handleCorpoIlegivel(HttpMessageNotReadableException ex) {
+        log.debug("Corpo da requisição ilegível: {}", ex.getMessage());
+        Map<String, String> error = new HashMap<>();
+        error.put("error", "Corpo da requisição inválido ou malformado");
+        return ResponseEntity.badRequest().body(error);
     }
 
     @ExceptionHandler(NoResourceFoundException.class)

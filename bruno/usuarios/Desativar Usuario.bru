@@ -1,0 +1,15 @@
+meta {
+  name: Desativar Usuario
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/usuarios/1/desativar
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

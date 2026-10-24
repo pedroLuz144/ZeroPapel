@@ -1,0 +1,337 @@
+/*
+ * Primitivos visuais reutilizados entre as telas (painéis, tabelas, abas, badges,
+ * métricas). Globais e sem escopo — as telas só aplicam as classes.
+ */
+
+.painel {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio-lg);
+  padding: 20px 22px;
+}
+
+.painel__titulo {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  margin-bottom: 16px;
+}
+
+.painel__cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.painel__cabecalho .painel__titulo {
+  margin-bottom: 0;
+}
+
+.barra-acoes {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.contagem {
+  font-size: 13px;
+  color: var(--cor-texto-suave);
+}
+
+/* ── Tabela ──────────────────────────────────────────────── */
+.tabela-scroll {
+  overflow-x: auto;
+}
+
+.tabela {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.tabela th {
+  text-align: left;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--cor-borda);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tabela td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--cor-borda);
+  color: var(--cor-texto);
+}
+
+.tabela tbody tr:hover td {
+  background: var(--cor-superficie-2);
+}
+
+.tabela__vazio {
+  text-align: center;
+  color: var(--cor-texto-fraco);
+  padding: 22px 0;
+}
+
+.tabela tfoot td,
+.tabela__total td {
+  background: var(--cor-superficie-3);
+  font-weight: 600;
+  border-bottom: none;
+}
+
+.tabela tfoot tr:hover td {
+  background: var(--cor-superficie-3);
+}
+
+/* ── Ações inline ────────────────────────────────────────── */
+.link-acao {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--cor-acento);
+  text-decoration: underline;
+}
+
+.link-acao + .link-acao {
+  margin-left: 12px;
+}
+
+.link-acao--perigo {
+  color: var(--cor-erro);
+}
+
+/* ── Badge ───────────────────────────────────────────────── */
+.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--cor-borda-forte);
+  font-size: 11px;
+  color: var(--cor-texto-suave);
+}
+
+.badge--on {
+  border-color: var(--cor-acento-fraco);
+  background: var(--cor-acento-superficie);
+  color: var(--cor-acento);
+}
+
+.badge--off {
+  color: var(--cor-texto-fraco);
+}
+
+/* ── Abas ────────────────────────────────────────────────── */
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--cor-borda);
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 9px 16px;
+  margin-bottom: -1px;
+  font-size: 13px;
+  color: var(--cor-texto-suave);
+  cursor: pointer;
+}
+
+.tab:hover {
+  color: var(--cor-texto);
+}
+
+.tab--ativo {
+  color: var(--cor-texto);
+  border-bottom-color: var(--cor-acento);
+  font-weight: 600;
+}
+
+/* ── Métricas ────────────────────────────────────────────── */
+.metricas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+
+.metrica {
+  background: var(--cor-superficie);
+  border: 1px solid var(--cor-borda);
+  border-radius: var(--raio);
+  padding: 16px 18px;
+}
+
+.metrica__rotulo {
+  font-size: 12px;
+  color: var(--cor-texto-suave);
+}
+
+.metrica__valor {
+  font-size: 23px;
+  font-weight: 700;
+  margin-top: 8px;
+  letter-spacing: -0.01em;
+}
+
+/* ── Seção com título + tabela ───────────────────────────── */
+.secao-tabela {
+  margin-bottom: 26px;
+}
+
+.secao-tabela > h3 {
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--cor-texto-fraco);
+  margin-bottom: 10px;
+}
+
+/* ── Estado de carregamento / vazio de tela ──────────────── */
+.estado-tela {
+  color: var(--cor-texto-suave);
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+@media (max-width: 720px) {
+  .painel {
+    padding: 16px;
+  }
+
+  .painel__cabecalho > .btn,
+  .barra-acoes > .btn {
+    flex: 1 0 auto;
+  }
+
+  .link-acao {
+    font-size: 13px;
+    padding: 6px 2px;
+  }
+
+  .link-acao + .link-acao {
+    margin-left: 18px;
+  }
+
+  .tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 0 16px;
+  }
+
+  .tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab {
+    white-space: nowrap;
+    padding: 11px 14px;
+  }
+
+  .metricas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+  }
+
+  .metrica {
+    padding: 12px 14px;
+  }
+
+  .metrica__valor {
+    font-size: 19px;
+    margin-top: 4px;
+  }
+
+  .tabela--cartoes thead {
+    display: none;
+  }
+
+  .tabela--cartoes,
+  .tabela--cartoes tbody,
+  .tabela--cartoes tfoot,
+  .tabela--cartoes tr {
+    display: block;
+    width: 100%;
+  }
+
+  .tabela--cartoes tr {
+    border: 1px solid var(--cor-borda);
+    border-radius: var(--raio);
+    padding: 4px 12px;
+    margin-bottom: 10px;
+    background: var(--cor-superficie);
+  }
+
+  .tabela--cartoes td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 0;
+    text-align: right;
+  }
+
+  .tabela--cartoes td:last-child {
+    border-bottom: none;
+  }
+
+  .tabela--cartoes td[data-rotulo]::before {
+    content: attr(data-rotulo);
+    color: var(--cor-texto-fraco);
+    font-size: 12px;
+    font-weight: 400;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  .tabela--cartoes td:not([data-rotulo]) {
+    justify-content: flex-start;
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .tabela--cartoes td.num:not([data-rotulo]) {
+    justify-content: flex-end;
+    font-weight: 400;
+  }
+
+  .tabela--cartoes td.tabela__vazio {
+    justify-content: center;
+    font-weight: 400;
+  }
+
+  .tabela--cartoes tbody tr:hover td {
+    background: transparent;
+  }
+
+  .tabela--cartoes tfoot tr {
+    background: var(--cor-superficie-3);
+    border-color: var(--cor-borda-forte);
+  }
+
+  .tabela--cartoes tfoot td,
+  .tabela--cartoes tfoot tr:hover td {
+    background: transparent;
+  }
+}

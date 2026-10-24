@@ -1,0 +1,14 @@
+.git
+.github
+.idea
+.claude
+.env
+*.log
+target/
+frontend/node_modules/
+frontend/dist/
+src/main/resources/static/
+documentosDoEstagio/
+bruno/
+scripts/
+docs/

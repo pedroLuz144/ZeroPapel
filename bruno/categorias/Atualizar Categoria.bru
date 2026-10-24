@@ -1,0 +1,21 @@
+meta {
+  name: Atualizar Categoria
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/categorias/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Petiscos Especiais"
+  }
+}

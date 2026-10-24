@@ -1,0 +1,15 @@
+meta {
+  name: Buscar Pedido por ID
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/pedidos/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

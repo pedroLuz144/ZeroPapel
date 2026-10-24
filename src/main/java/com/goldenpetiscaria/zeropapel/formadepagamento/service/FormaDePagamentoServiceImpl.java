@@ -4,10 +4,11 @@ import com.goldenpetiscaria.zeropapel.formadepagamento.dto.request.AdicionarForm
 import com.goldenpetiscaria.zeropapel.formadepagamento.dto.request.AtualizarFormaDePagamentoRequest;
 import com.goldenpetiscaria.zeropapel.formadepagamento.dto.response.FormaDePagamentoResponseDTO;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
+import com.goldenpetiscaria.zeropapel.formadepagamento.evento.ExclusaoDeFormaDePagamentoSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.formadepagamento.repository.FormaDePagamentoRepository;
 import com.goldenpetiscaria.zeropapel.common.exception.ConflitoException;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.pedido.repository.PedidoRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,14 +19,11 @@ import java.util.Optional;
 public class FormaDePagamentoServiceImpl implements FormaDePagamentoService {
 
     private final FormaDePagamentoRepository formaDePagamentoRepository;
-    private final PedidoRepository pedidoRepository;
+    private final ApplicationEventPublisher eventos;
 
-
-
-
-    public FormaDePagamentoServiceImpl(FormaDePagamentoRepository formaDePagamentoRepository, PedidoRepository pedidoRepository) {
+    public FormaDePagamentoServiceImpl(FormaDePagamentoRepository formaDePagamentoRepository, ApplicationEventPublisher eventos) {
         this.formaDePagamentoRepository = formaDePagamentoRepository;
-        this.pedidoRepository = pedidoRepository;
+        this.eventos = eventos;
     }
 
     @Override
@@ -50,8 +48,7 @@ public class FormaDePagamentoServiceImpl implements FormaDePagamentoService {
 
     @Override
     public FormaDePagamentoResponseDTO atualizarFormaDePagamento(Long id, AtualizarFormaDePagamentoRequest request) {
-        FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
+        FormaDePagamento formaDePagamento = buscarEntidadePorId(id);
         if (request.nome() != null) {
             Optional<FormaDePagamento> existente = formaDePagamentoRepository.findByNome(request.nome());
             if (existente.isPresent() && !existente.get().getId().equals(id)) {
@@ -67,12 +64,15 @@ public class FormaDePagamentoServiceImpl implements FormaDePagamentoService {
 
     @Override
     public void excluirFormaDePagamento(Long id) {
-        FormaDePagamento formaDePagamento = formaDePagamentoRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
-        if (pedidoRepository.existsByFormaDePagamentoId(id)) {
-            throw new ConflitoException("Não é possível excluir a forma de pagamento pois existem pedidos vinculados a ela");
-        }
+        FormaDePagamento formaDePagamento = buscarEntidadePorId(id);
+        eventos.publishEvent(new ExclusaoDeFormaDePagamentoSolicitadaEvent(id));
         formaDePagamentoRepository.delete(formaDePagamento);
+    }
+
+    @Override
+    public FormaDePagamento buscarEntidadePorId(Long id) {
+        return formaDePagamentoRepository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Forma de pagamento não encontrada para o ID informado"));
     }
 
     private FormaDePagamentoResponseDTO toDTO(FormaDePagamento formaDePagamento) {

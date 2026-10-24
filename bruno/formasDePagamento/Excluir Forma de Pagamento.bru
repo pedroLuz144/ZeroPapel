@@ -1,0 +1,15 @@
+meta {
+  name: Excluir Forma de Pagamento
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/formasDePagamento/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}

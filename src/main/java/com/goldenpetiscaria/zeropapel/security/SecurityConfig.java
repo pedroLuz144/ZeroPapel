@@ -9,6 +9,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -16,6 +17,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
@@ -26,15 +28,30 @@ import java.util.List;
 @EnableMethodSecurity
 public class SecurityConfig {
 
+    static final String POLITICA_DE_CONTEUDO = String.join("; ",
+            "default-src 'self'",
+            "img-src 'self' data:",
+            "object-src 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "frame-ancestors 'none'");
+    static final long VALIDADE_DO_HSTS_EM_SEGUNDOS = 31_536_000L;
+
     private final JwtFilter jwtFilter;
     private final UserDetailsService userDetailsService;
+    private final PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado;
+    private final ManipuladorDeAcessoNegado manipuladorDeAcessoNegado;
 
     public SecurityConfig(
             JwtFilter jwtFilter,
-            UserDetailsService userDetailsService
+            UserDetailsService userDetailsService,
+            PontoDeEntradaNaoAutenticado pontoDeEntradaNaoAutenticado,
+            ManipuladorDeAcessoNegado manipuladorDeAcessoNegado
     ) {
         this.jwtFilter = jwtFilter;
         this.userDetailsService = userDetailsService;
+        this.pontoDeEntradaNaoAutenticado = pontoDeEntradaNaoAutenticado;
+        this.manipuladorDeAcessoNegado = manipuladorDeAcessoNegado;
     }
 
     @Value("${cors.allowed-origin}")
@@ -44,13 +61,27 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
+                .headers(cabecalhos -> cabecalhos
+                        .httpStrictTransportSecurity(hsts -> hsts
+                                .includeSubDomains(true)
+                                .maxAgeInSeconds(VALIDADE_DO_HSTS_EM_SEGUNDOS))
+                        .contentSecurityPolicy(csp -> csp.policyDirectives(POLITICA_DE_CONTEUDO))
+                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicy.SAME_ORIGIN))
+                )
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/auth/**", "/login.html", "/dashboard.html", "/").permitAll()
+                        .requestMatchers("/auth/**").permitAll()
+                        .requestMatchers(HttpMethod.GET,
+                                "/", "/index.html", "/login", "/app/**",
+                                "/assets/**", "/favicon.ico").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(excecoes -> excecoes
+                        .authenticationEntryPoint(pontoDeEntradaNaoAutenticado)
+                        .accessDeniedHandler(manipuladorDeAcessoNegado)
                 )
                 .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 

@@ -6,4 +6,5 @@ public interface RefreshTokenService {
     String gerar(Usuario usuario);
     Usuario validarERetornarUsuario(String token);
     void revogar(String token);
+    void revogarTodosDoUsuario(Long usuarioId);
 }

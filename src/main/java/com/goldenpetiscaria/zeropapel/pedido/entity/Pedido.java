@@ -1,18 +1,26 @@
 package com.goldenpetiscaria.zeropapel.pedido.entity;
 
+import com.goldenpetiscaria.zeropapel.canaldevenda.enumerator.TratamentoTaxaEntrega;
 import com.goldenpetiscaria.zeropapel.formadepagamento.entity.FormaDePagamento;
+import com.goldenpetiscaria.zeropapel.loja.entity.Loja;
+import com.goldenpetiscaria.zeropapel.pedido.enumerator.StatusPedido;
 import com.goldenpetiscaria.zeropapel.plataforma.entity.Plataforma;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Entity
-@Table(name = "pedidos")
+@Table(name = "pedidos", uniqueConstraints = @UniqueConstraint(
+        name = "uk_pedidos_plataforma_pedido_id",
+        columnNames = {"plataforma_id", "plataforma_pedido_id"}))
 @Getter
 @Setter
 @NoArgsConstructor
@@ -23,13 +31,26 @@ public class Pedido {
     private Long id;
 
     @ManyToOne
+    @JoinColumn(name = "loja_id", nullable = false)
+    private Loja loja;
+
+    @ManyToOne
     @JoinColumn(name = "plataforma_id", nullable = false)
     private Plataforma plataforma;
+
+    @Column(name = "plataforma_pedido_id")
+    private String plataformaPedidoId;
 
     private String nomeCliente;
 
     @Column(name = "horario_pedido", nullable = false)
     private LocalDateTime horarioPedido;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 20)
+    @ColumnDefault("'CONCLUIDO'")
+    private StatusPedido status = StatusPedido.EM_ABERTO;
 
     @OneToMany(mappedBy = "pedido", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<ItemPedido> itens;
@@ -37,6 +58,23 @@ public class Pedido {
     @ManyToOne
     @JoinColumn(name = "forma_de_pagamento_id", nullable = false)
     private FormaDePagamento formaDePagamento;
+
+    @Column(name = "taxa_plataforma_percentual", nullable = false, precision = 5, scale = 2)
+    private BigDecimal taxaPlataformaPercentual;
+
+    @Column(name = "taxa_pagamento_percentual", nullable = false, precision = 5, scale = 2)
+    private BigDecimal taxaPagamentoPercentual;
+
+    @Column(name = "taxa_entrega", nullable = false, precision = 10, scale = 2)
+    private BigDecimal taxaEntrega = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "tratamento_taxa_entrega", nullable = false, length = 20)
+    private TratamentoTaxaEntrega tratamentoTaxaEntrega = TratamentoTaxaEntrega.IGNORAR;
+
+    @Column(nullable = false)
+    private boolean fechado = false;
 
     @Column(nullable = false)
     private BigDecimal valor;

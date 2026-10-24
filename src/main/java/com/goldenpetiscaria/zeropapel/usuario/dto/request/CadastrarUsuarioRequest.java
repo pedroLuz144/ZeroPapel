@@ -14,7 +14,7 @@ public record CadastrarUsuarioRequest(
         String usuario,
 
         @NotBlank(message = "Senha é obrigatória")
-        @Size(min = 4, message = "Senha deve ter no mínimo 4 caracteres")
+        @Size(min = 8, max = 72, message = "Senha deve ter entre 8 e 72 caracteres")
         String senha,
 
         @NotNull(message = "Role é obrigatória")

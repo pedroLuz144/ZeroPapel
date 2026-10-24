@@ -5,8 +5,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
-
 @Entity
 @Table(name = "plataforma")
 @Getter
@@ -21,6 +19,6 @@ public class Plataforma {
     @Column(nullable = false, unique = true)
     private String nome;
 
-    @Column(nullable = false)
-    private BigDecimal taxaPercentual;
+    @Column(nullable = false, columnDefinition = "boolean default true")
+    private boolean entrega = true;
 }

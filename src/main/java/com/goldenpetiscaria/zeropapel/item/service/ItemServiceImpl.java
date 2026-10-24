@@ -2,12 +2,14 @@ package com.goldenpetiscaria.zeropapel.item.service;
 
 import com.goldenpetiscaria.zeropapel.categoria.entity.Categoria;
 import com.goldenpetiscaria.zeropapel.common.exception.RecursoNaoEncontradoException;
-import com.goldenpetiscaria.zeropapel.categoria.repository.CategoriaRepository;
+import com.goldenpetiscaria.zeropapel.categoria.service.CategoriaService;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AdicionarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.request.AtualizarItemRequest;
 import com.goldenpetiscaria.zeropapel.item.dto.response.ItemResponseDTO;
 import com.goldenpetiscaria.zeropapel.item.entity.Item;
+import com.goldenpetiscaria.zeropapel.item.evento.ExclusaoDeItemSolicitadaEvent;
 import com.goldenpetiscaria.zeropapel.item.repository.ItemRepository;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -17,17 +19,19 @@ import java.util.Optional;
 public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository repository;
-    private final CategoriaRepository categoriaRepository;
+    private final CategoriaService categoriaService;
+    private final ApplicationEventPublisher eventos;
 
-    public ItemServiceImpl(ItemRepository repository, CategoriaRepository categoriaRepository) {
+    public ItemServiceImpl(ItemRepository repository, CategoriaService categoriaService,
+                           ApplicationEventPublisher eventos) {
         this.repository = repository;
-        this.categoriaRepository = categoriaRepository;
+        this.categoriaService = categoriaService;
+        this.eventos = eventos;
     }
 
     @Override
     public ItemResponseDTO adicionarItemAoCardapio(AdicionarItemRequest request) {
-        Categoria categoria = categoriaRepository.findById(request.categoria())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada para o ID informado"));
+        Categoria categoria = categoriaService.buscarEntidadePorId(request.categoria());
         Item novoItem = new Item();
         novoItem.setNome(request.nome());
         novoItem.setCategoria(categoria);
@@ -48,8 +52,7 @@ public class ItemServiceImpl implements ItemService {
         Item itemExistente = optionalItem.get();
         if (request.nome() != null) itemExistente.setNome(request.nome());
         if (request.categoria() != null) {
-            Categoria categoria = categoriaRepository.findById(request.categoria())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada para o ID informado"));
+            Categoria categoria = categoriaService.buscarEntidadePorId(request.categoria());
             itemExistente.setCategoria(categoria);
         }
         if (request.preco() != null) itemExistente.setPreco(request.preco());
@@ -62,8 +65,15 @@ public class ItemServiceImpl implements ItemService {
     public boolean excluirItemDoCardapio(Long id) {
         Optional<Item> optionalItem = repository.findById(id);
         if (optionalItem.isEmpty()) throw new RecursoNaoEncontradoException("Item não encontrado para o ID informado");
+        eventos.publishEvent(new ExclusaoDeItemSolicitadaEvent(id));
         repository.delete(optionalItem.get());
         return true;
+    }
+
+    @Override
+    public Item buscarEntidadePorId(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Item não encontrado para o ID informado: " + id));
     }
 
     private ItemResponseDTO toDTO(Item item) {

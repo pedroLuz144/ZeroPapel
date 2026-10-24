@@ -1,0 +1,56 @@
+name: zeropapel-prod
+
+x-logs: &logs
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  banco:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: zeropapel
+      MARIADB_ROOT_PASSWORD: ${SENHA_BD:?defina SENHA_BD no .env}
+      TZ: America/Sao_Paulo
+    command:
+      - --innodb-buffer-pool-size=128M
+      - --innodb-log-buffer-size=8M
+      - --key-buffer-size=8M
+      - --max-connections=30
+      - --performance-schema=OFF
+      - --skip-name-resolve
+    volumes:
+      - dados-banco:/var/lib/mysql
+    mem_limit: 384m
+    logging: *logs
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  app:
+    image: zeropapel:atual
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      URL_BD: jdbc:mariadb://banco:3306/zeropapel
+      USER_BD: root
+      JAVA_TOOL_OPTIONS: >-
+        -Xms128m -Xmx384m -XX:MaxMetaspaceSize=160m -Xss512k
+        -XX:+UseSerialGC -XX:TieredStopAtLevel=1
+      SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE: "5"
+      SERVER_TOMCAT_THREADS_MAX: "40"
+    ports:
+      - "127.0.0.1:8080:8080"
+    mem_limit: 700m
+    logging: *logs
+    depends_on:
+      banco:
+        condition: service_healthy
+
+volumes:
+  dados-banco:
+    name: zeropapel-prod-mariadb

@@ -1,0 +1,22 @@
+meta {
+  name: Atualizar Loja
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/lojas/1
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{accessToken}}
+}
+
+body:json {
+  {
+    "nome": "Loja Centro",
+    "ativo": true
+  }
+}

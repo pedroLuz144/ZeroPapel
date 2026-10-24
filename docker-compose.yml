@@ -1,0 +1,36 @@
+name: zeropapel
+
+services:
+  banco:
+    image: mariadb:11.4
+    restart: unless-stopped
+    environment:
+      MARIADB_DATABASE: zeropapel
+      MARIADB_ROOT_PASSWORD: ${SENHA_BD:?defina SENHA_BD no .env}
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - dados-banco:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      URL_BD: jdbc:mariadb://banco:3306/zeropapel
+      USER_BD: root
+    ports:
+      - "8080:8080"
+    depends_on:
+      banco:
+        condition: service_healthy
+
+volumes:
+  dados-banco:
+    name: zeropapel-mariadb
